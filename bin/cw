@@ -20,6 +20,9 @@ import time
 EMBEDDED = {}  # bundled assets
 POINTER_FILES = ('CLAUDE.md',)
 SKILLS = ('cowork', 'cowork-init', 'cowork-seat', 'cowork-consolidate')
+# Keep the dirty-check scope aligned with the release export's kit paths.
+KIT_PATHS = ('README.md', 'README.zh.md', '.gitignore', 'bin', 'skills', 'templates', 'tests')
+KIT_VERSION = 'cowork/kit-version'
 ADAPTERS = {
     'claude': ['claude', '-n', '{name}', '--model', '{model}', '--effort', '{effort}', '{prompt}'],
     'agy': ['agy', '--model', '{model}', '--effort', '{effort}'],
@@ -84,6 +87,38 @@ def asset(name):
     if name in EMBEDDED:
         return EMBEDDED[name]
     raise CWError(f'Missing bundled asset: {name}')
+
+
+def kit_version():
+    """Identify only a kit's own checkout, never an enclosing project repo."""
+    script = Path(__file__).resolve()
+    if script.parent.name != 'bin':
+        return 'unknown -'
+    kit_root = script.parent.parent
+    if (kit_root / 'cowork').exists() or (kit_root / 'tools/publish-kit').exists():
+        print('Warning: development checkout is not for deployment; use a GitHub release clone.', file=sys.stderr)
+    try:
+        def git(*args):
+            return subprocess.run(['git', '--no-optional-locks', '-C', str(kit_root), *args],
+                                  text=True, capture_output=True)
+        top = git('rev-parse', '--show-toplevel')
+        if top.returncode or Path(top.stdout.strip()).resolve() != kit_root:
+            return 'unknown -'
+        dirty = git('status', '--porcelain=v1', '--untracked-files=all', '--', *KIT_PATHS)
+        if dirty.returncode == 0 and dirty.stdout:
+            print('Warning: kit checkout has uncommitted changes in kit paths; version records HEAD.', file=sys.stderr)
+        head = git('rev-parse', '--verify', 'HEAD^{commit}')
+        sha = head.stdout.strip()
+        if head.returncode or not re.fullmatch(r'(?:[0-9a-f]{40}|[0-9a-f]{64})', sha):
+            return 'unknown -'
+        remote = git('remote', 'get-url', 'origin')
+        origin = remote.stdout.strip() if remote.returncode == 0 else '-'
+    except OSError:
+        return 'unknown -'
+    origin = re.sub(r'^(https?://)[^/]*@', r'\1', origin, flags=re.I)
+    if not origin or '\n' in origin or '\r' in origin:
+        origin = '-'
+    return f'{sha} {origin}'
 
 
 def render(template, **values):
@@ -658,6 +693,11 @@ def init(root, args):
         'cowork/cw': source,
         'cowork/lessons/README.md': asset('templates/lessons-readme.md'),
     }
+    fresh = not inside(root, 'cowork/cw').exists()
+    version = kit_version()
+    # A plain init must not claim that an older installation has been upgraded.
+    if fresh or args.upgrade:
+        contents[KIT_VERSION] = version + '\n'
     # On later dates, rerunning init must not create another coordinator record.
     existing_seat = any(header(read(p), p)[0].get('kind') == 'seat' for p in task_paths(root))
     if not existing_seat:
@@ -680,7 +720,8 @@ def init(root, args):
     for path, content in contents.items():
         p = inside(root, path)
         old = read(p) if p.exists() else None
-        upgrade = args.upgrade and (path == 'cowork/cw' or path.startswith(('.claude/skills/', '.agents/skills/')))
+        upgrade = (path == KIT_VERSION or args.upgrade and
+                   (path == 'cowork/cw' or path.startswith(('.claude/skills/', '.agents/skills/'))))
         action = 'create' if old is None else 'replace' if upgrade and old != content else 'unchanged'
         actions.append((path, action, content))
     p = inside(root, 'AGENTS.md')
@@ -714,6 +755,11 @@ def init(root, args):
             raise CWError(f'Init destinations {destinations[resolved]} and {path} alias the same file; use separate files before init.')
         destinations[resolved] = path
     for path, action, content in actions:
+        if path == KIT_VERSION and action != 'unchanged':
+            p = inside(root, path)
+            old = read(p).split() if p.exists() else []
+            previous = old[0] if old else 'unknown'
+            print(f'kit: to {version.split()[0]}' if fresh else f'kit: from {previous} to {version.split()[0]}')
         print(f'{path}: {action}')
     changed = [(p, a, c) for p, a, c in actions if a != 'unchanged']
     if not changed:
@@ -1451,6 +1497,9 @@ def lessons(root, day):
 
 
 def lint(root):
+    version_path = inside(root, KIT_VERSION)
+    version = read(version_path).strip() if version_path.exists() else ''
+    print('kit: ' + (version or 'unknown'))
     violations = []
     duplicates = {}
     template_lines = {line for name in ('task.md', 'project.md', 'agents-block.md', 'start-prompt.txt', 'handover-prompt.txt',

@@ -335,12 +335,13 @@ class CWTests(unittest.TestCase):
         seats.write_text(seats.read_text() + '# keep seat comment\n')
         (self.root / '.agents/skills/cowork/SKILL.md').write_text('old skill\n')
         (self.root / 'cowork/cw').write_text('old script\n')
+        (self.root / 'cowork/kit-version').write_text('old-kit -\n')
         before = self.snapshot()
         self.cw('init', '--upgrade')
         self.assertEqual(before, self.snapshot())
         self.cw('init', '--upgrade', '--apply')
         self.assertEqual(agents.read_text(), 'before\n' + original + 'after\n')
-        allowed = {'AGENTS.md', 'cowork/cw'} | {f'{base}/{s}/SKILL.md' for base in ('.agents/skills', '.claude/skills') for s in ('cowork', 'cowork-init', 'cowork-seat', 'cowork-consolidate')}
+        allowed = {'AGENTS.md', 'cowork/cw', 'cowork/kit-version'} | {f'{base}/{s}/SKILL.md' for base in ('.agents/skills', '.claude/skills') for s in ('cowork', 'cowork-init', 'cowork-seat', 'cowork-consolidate')}
         after = self.snapshot()
         for path in before.keys() - allowed:
             self.assertEqual(before[path], after[path], path)

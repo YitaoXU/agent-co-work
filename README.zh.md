@@ -12,7 +12,7 @@
 - **任务（`kind: task`）**：以用户决策收尾的工作单元，运行在 `main` 或 `side` 线上（或 `-`）。每个任务启动前都必须获得用户批准，多个已批准任务可并行推进。
 - **步骤（`kind: step`）**：任务内部的具体工作（评审、实现、审计、修复、检查），可记录在任务的 `State` 中，也可新建带 `parent: <task>` 的独立步骤文件。协调员会话使用 `kind: seat`。
 - **席位（Seats）**：`cowork/seats.tsv` 中定义的命名角色（`coordinator`、`coordinator-alt`、`advisor`、`coder-heavy`、`coder-light`、`auditor`），将各角色映射到受支持的 agent CLI、模型、推理强度（effort）、生命周期（`short` 子终端或 `long` 无父终端），以及可选的带引号额外 CLI `args`。
-- **`cowork/` 文件**：`cowork/cw`（内嵌独立 CLI）、`seats.tsv`（席位表）、`coordinator.addr`（当前活跃协调员终端 ID）、`README.md`（自动生成的总览）、`projects/<name>.md`、路径永不迁移的每日任务记录 `yyyymmdd/<task>.md`、`locks/<resource>` 与 `lessons/`。
+- **`cowork/` 文件**：`cowork/cw`（内嵌独立 CLI）、`kit-version`（已安装 kit 的提交和来源）、`seats.tsv`（席位表）、`coordinator.addr`（当前活跃协调员终端 ID）、`README.md`（自动生成的总览）、`projects/<name>.md`、路径永不迁移的每日任务记录 `yyyymmdd/<task>.md`、`locks/<resource>` 与 `lessons/`。
 
 ## 环境要求
 
@@ -20,17 +20,43 @@
 - **Python 3.9+**：仅使用标准库；`bin/cw` 无第三方依赖。
 - **Herdr（`hc` 0.1.22+）**：用于实时启动、审批、状态查看、汇报与交接；离线记录管理与命令预览时不强制要求。
 - **Agent CLI（`claude`、`codex`、`agy`）**：只需安装 `cowork/seats.tsv` 或单任务覆盖配置中实际用到的 CLI，不要求全部安装——纯 Claude 配置只需 `PATH` 中有 `claude`。
-- **`git`（可选）**：仅在使用 `cw new --worktree` 创建隔离工作树时需要。
+- **`git`**：用于克隆和更新 GitHub 发布仓库、识别发布版本，以及通过 `cw new --worktree` 创建隔离工作树。安装后的记录管理命令无需 Git。
+
+## 从 GitHub 安装和升级
+
+每台机器保留一份固定的 GitHub 发布仓库 clone，供所有目标项目共用。将 `<repo-url>` 替换为 GitHub 发布仓库 URL，将 `<kit-clone>` 替换为固定目录，例如 `$HOME/.agent-co-work`。私有仓库需要先配置 SSH 访问权限。开发仓库不用于部署。
+
+```sh
+git clone <repo-url> <kit-clone>
+```
+
+在各目标项目的根目录中更新这份发布 clone，并查看安装计划：
+
+```sh
+git -C <kit-clone> pull --ff-only
+python3 <kit-clone>/bin/cw init
+```
+
+确认席位表、文件计划及输出的 `kit: to <sha>` 版本后，在同一条 init 命令中追加 `--apply`（见“首次部署”）。升级已有项目时，在其根目录运行：
+
+```sh
+git -C <kit-clone> pull --ff-only
+python3 <kit-clone>/bin/cw init --upgrade
+python3 <kit-clone>/bin/cw init --upgrade --apply
+cowork/cw lint
+```
+
+应用升级前检查 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出该已安装版本，供你与计划核对。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。若 kit 文件有未提交改动，或使用了开发仓库，会输出告警，便于部署前检查发布 clone。
 
 ## 首次部署
 
 1. 在 Herdr 标签页中打开目标项目目录，确保环境变量 `HC_TERMINAL_ID` 与该标签页的 `herdr.space` 标签已设置。
 2. 在该标签页中启动 Claude Code（或你选定的协调员 CLI）。
-3. 运行 `cowork-init` 流程——让协调员执行 *"Use agent-co-work from `<path to this repo>` to set up collaboration here"*（或用中文指示使用该仓库配置协作），也可以在目标项目根目录直接运行 `python3 <kit-repo>/bin/cw init`，在不写入文件的情况下打印默认席位表和文件计划（`create`、`append`、`unchanged`）。
+3. 按上节更新固定的 GitHub 发布 clone，然后运行 `cowork-init` 流程——让协调员执行 *"Use agent-co-work from `<kit-clone>` to set up collaboration here"*（或用中文指示使用该 clone 配置协作），也可以在目标项目根目录直接运行 `python3 <kit-clone>/bin/cw init`，在不写入文件的情况下打印默认席位表、kit 版本和文件计划（`create`、`append`、`unchanged`）。
 4. 确认席位表；若要在安装前覆盖默认席位，可传入 `--seat <seat>=<agent>:<model>:<effort>:<life>`（可重复指定）重新检查计划，确认无误后在完全相同的命令上追加 `--apply` 执行。
-5. 运行 `cowork/cw seats` 和 `cowork/cw lint`（输出 `Caps OK.`）验证安装。
+5. 运行 `cowork/cw seats` 和 `cowork/cw lint`（输出已安装的 `kit:` 版本和 `Caps OK.`）验证安装，并将 `cowork/kit-version` 与计划核对。
 
-**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将四个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）复制到 `.claude/skills/` 和 `.agents/skills/`；如缺失则向 `.gitignore` 追加 `.worktrees/`、向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。已有内容永不改写，重复运行会打印 `nothing to do`；执行 `python3 <kit-repo>/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、复制的技能和 `AGENTS.md` 的标记区块。
+**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将四个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）复制到 `.claude/skills/` 和 `.agents/skills/`；如缺失则向 `.gitignore` 追加 `.worktrees/`、向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。普通 init 保留已有内容，对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 <kit-clone>/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
 
 ### 使用 Herdr 应用
 
@@ -139,7 +165,7 @@ flowchart TD
 - 每个任务结束时填写 `## Wrap-up`：结果、产物位置、1–3 条 `- lesson:`、建议的下一步以及用户决策（仅在收到后记录）。旧版 `size:` 头部和 `debrief` / `## Debrief` 记录仍可读取。
 - `cowork/cw index` 重新生成 `cowork/README.md`（按项目和线路分组的活跃任务，以及近 7 天内已关闭任务，上限 60 行）。
 - `cowork/cw lessons [yyyymmdd]` 从 Wrap-up 和旧版 Debrief 的教训中刷新 `cowork/lessons/<date>.md` 的 `From tasks` 节，同时保留 `Takeaways` 不被覆盖；每周或当 `cowork/lessons/README.md` 超过行数上限时运行 `cowork-consolidate`。
-- `cowork/cw lint` 检查行数上限（`Goal` <=3、`State` <=10、`Handover` <=20、`lessons/README.md` <=40、`cowork/README.md` <=60），校验项目状态及任务头部/命名，并列出超过 40 个字符的完全重复行。
+- `cowork/cw lint` 输出已安装的 `cowork/kit-version`（旧项目为 `unknown`），检查行数上限（`Goal` <=3、`State` <=10、`Handover` <=20、`lessons/README.md` <=40、`cowork/README.md` <=60），校验项目状态及任务头部/命名，并列出超过 40 个字符的完全重复行。
 
 ## 协调员交接
 
@@ -173,7 +199,7 @@ flowchart TD
 
 | 命令 | 用途 |
 |---|---|
-| `cw init [--seat seat=agent:model:effort:life] [--upgrade] [--apply]` | 规划、应用或升级项目安装 |
+| `python3 <kit-clone>/bin/cw init [--seat seat=agent:model:effort:life] [--upgrade] [--apply]` | 从固定 GitHub 发布 clone 安装或升级；规划版本，并在首次安装或升级时写入 `cowork/kit-version` |
 | `cw seats` | 打印 `cowork/seats.tsv` |
 | `cw seat set [--args='...'] <seat> <agent> <model> <effort> [life]` | 更新单个席位配置（省略 `--args` 保留原值，`--args=-` 清空）并追加一行 `State` |
 | `cw project new <name>` | 创建 `cowork/projects/<name>.md` |
@@ -191,7 +217,7 @@ flowchart TD
 | `cw handover [context\|tokens \| --accept]` | 启动继任协调员或接管 `coordinator.addr` |
 | `cw index` | 重新生成 `cowork/README.md` |
 | `cw lessons [yyyymmdd]` | 将 Wrap-up/Debrief 中的 `- lesson:` 汇总到 `cowork/lessons/<date>.md` |
-| `cw lint` | 检查记录行数上限、项目/任务校验以及重复行 |
+| `cw lint` | 输出已安装的 `cowork/kit-version`；检查记录行数上限、项目/任务校验以及重复行 |
 
 </details>
 
@@ -202,7 +228,7 @@ flowchart TD
 - **无加密级强约束**：`approved: user, yyyy-mm-dd` 与席位角色只做格式/日期校验，不构成防止手动篡改的安全边界。
 - **有界启动重试与人工恢复**：`cw start` 仅在任务确认尚未送达且终端提前退出时最多重试一次（沿用原名与原 120 秒启动时限）；第二次退出、已送达或送达状态不明确、任何 `cw handover` 退出或时限到期都会中止等待排查。过期锁只会标记（`! stale holder`），永不自动释放。
 - **命名与可见性上限**：名称限 1–20 字符（`[a-z0-9]([a-z0-9-]{0,18}[a-z0-9])?`），冲突后缀最多到 `-9`，调用方无 `herdr.space` 标签时会发出警告并以隐藏终端启动。
-- **单元测试范围**：`tests/` 使用隔离的模拟 `hc`/`git` 二进制、捕获的提示界面文本以及真实的并发锁竞争进程；实机多 agent 交接未纳入自动化测试套件。
+- **单元测试范围**：`tests/` 使用隔离的模拟 `hc`/`git` 二进制、本地 Git clone 测试仓库、捕获的提示界面文本以及真实的并发锁竞争进程；实机多 agent 交接未纳入自动化测试套件。
 
 ## 开发说明
 
