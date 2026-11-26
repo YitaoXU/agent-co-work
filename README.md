@@ -3,7 +3,7 @@ English | [中文](README.zh.md)
 # agent-co-work
 
 A portable multi-agent collaboration kit for any project folder on Unix-like hosts (macOS/Linux), built on Herdr (`hc`) and one standard-library Python CLI (`cw`).
-You discuss direction with a coordinator, approve each task, decide hard questions, and review results with an advisor and coordinator.
+You discuss direction with a coordinator, approve each task, decide hard questions, and review the coordinator’s conclusion-first summaries; an advisor supplies reviews when needed.
 Any seat can run any supported agent CLI (`claude`, `codex`, `agy`); the three-agent setup is only an example, and the authoritative rules live in [skill cowork](skills/cowork/SKILL.md#task-loop).
 
 ## Quick start
@@ -81,7 +81,7 @@ The release clone at `~/.agent-co-work` is shared by all target projects. Always
 
 **Kit version:** the plan shows `kit: to <sha>` on a fresh install or `kit: from <old|unknown> to <sha>` for a changed upgrade. A fresh install or upgrade writes `cowork/kit-version` as one line containing the clone's full HEAD commit and origin URL (HTTPS credentials are removed). `cowork/cw lint` prints the installed version and `Caps OK.`; compare the version with the plan. An unchanged version prints no version-change line. Plain `init` preserves an older project's version, including a missing stamp; use `--upgrade` to record the installed release. Check warnings about uncommitted kit changes or a development checkout before deploying.
 
-**What `init` touches:** creates `cowork/cw`, `cowork/kit-version` (fresh install only), `cowork/seats.tsv`, `cowork/coordinator.addr`, `cowork/<today>/coordinator.md`, `cowork/README.md`, and `cowork/lessons/README.md`; copies the four skills (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`) into `.claude/skills/` and `.agents/skills/`; appends `.worktrees/` to `.gitignore` if absent, appends a marked block to `AGENTS.md`, and adds `@AGENTS.md` to `CLAUDE.md` if absent. Plain init preserves existing content, and rerunning an up-to-date installation prints `nothing to do`. `python3 ~/.agent-co-work/bin/cw init --upgrade` (then `--upgrade --apply`) refreshes only `cowork/cw`, `cowork/kit-version`, the copied skills, and the marked `AGENTS.md` block.
+**What `init` touches:** creates `cowork/cw`, `cowork/kit-version` (fresh install only), `cowork/seats.tsv`, `cowork/coordinator.addr`, `cowork/<today>/coordinator.md`, `cowork/README.md`, and `cowork/lessons/README.md`; copies the four skills (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`) into `.claude/skills/` and `.agents/skills/`; on fresh installation appends missing `cowork/`, `output/`, `.scratch/`, `.tmp/`, and `.worktrees/` entries to `.gitignore` (listed in the plan), appends a marked block to `AGENTS.md`, and adds `@AGENTS.md` to `CLAUDE.md` if absent. After installation, plain init and `--upgrade` preserve `.gitignore` byte-for-byte and print a note if default entries are missing. Plain init preserves other existing content, and rerunning an up-to-date installation prints `nothing to do`. `python3 ~/.agent-co-work/bin/cw init --upgrade` (then `--upgrade --apply`) refreshes only `cowork/cw`, `cowork/kit-version`, the copied skills, and the marked `AGENTS.md` block.
 
 ### Using the Herdr app
 
@@ -131,66 +131,79 @@ The default three-agent table in `templates/seats.tsv` is only an example. Any s
 - **Change a seat default**: during init pass `--seat <seat>=<agent>:<model>:<effort>:<life>` (configure `args` afterward); afterward run `cowork/cw seat set [--args='...'] <seat> <agent> <model> <effort> [short|long]` (updates `cowork/seats.tsv`, keeps comments, and appends a `State` line to the caller's record). `--args='...'` replaces extra adapter options (e.g. `--args='--sandbox workspace-write'` or `'--config "label=two words"'`), omitting `--args` preserves existing `args`, and `--args=-` clears them; clear or replace incompatible options when switching adapters.
 - **Name an agent for one task**: pass `--agent <agent>:<model>:<effort>[:<life>]` to `cowork/cw new`, or run `cowork/cw set <taskfile> agent=<agent>:<model>:<effort>[:<life>]` (`agent=-` restores the seat default). Omitted `life` inherits the seat, and task overrides retain the seat's `args` (so switching adapters on a seat with adapter-specific `args` requires clearing or updating those `args` first); the seat keeps its role and naming rules.
 
+- **Extra arguments for one task**: `cw new ... --args='-a never'` or `cw set <taskfile> 'args=-a never'` appends task options after seat options for every adapter. `args=-` clears only the task options; legacy headers without `args:` mean none. Values use shell-style quoting without shell expansion; `args: --label "run # 1" # comment` preserves the quoted hash. Keep unattended-run options on the task that needs them.
+
+## Default project layout
+
+Projects can declare a "where things go" override in `AGENTS.md`; installation does not relocate existing files. Fresh init supplies the ignore entries; upgrades preserve the project's tracking choice. Ignored evidence is local and needs the project's own backup policy.
+
+| Path | Contents | Fresh-install tracking | Durable evidence |
+|---|---|---|---|
+| `docs/` | Living guides, designs, accepted conclusions | Tracked | Yes |
+| `docs/archive/` | Dated rollups of superseded prose | Tracked | Yes |
+| `cowork/` | Daily records, projects, seats, locks, lessons | Ignored | Yes, local records |
+| `output/<yyyymmdd>/<task>/` | Results, audit findings, logs, rolled-up `log.md` | Ignored | Yes; protect cited paths |
+| `.scratch/` | Host-local operational receipts and scheduler files | Ignored | Operational receipts only |
+| `.tmp/` | Disposable clones, sandboxes, probes | Ignored | No; export needed evidence first |
+| `.worktrees/` | Optional isolated checkouts | Ignored | No; retire after merge/closure |
+
+See [consolidation](skills/cowork-consolidate/SKILL.md) for each class's lifecycle, cap, and archive destination.
+
 ## How it runs
 
 ```mermaid
 flowchart TD
-  S1["1. Direction: you & coordinator"] --> S2["2. Plan: coordinator & advisor, then you"]
-  S2 --> S3["3. Before each task: coordinator & advisor draft the Brief, you approve"]
-  S3 --> S4["4. Run the task (main or side line, in parallel; see diagram 2)"]
-  S4 -.->|hard question| You(("You"))
-  You -.->|decide| S4
-  S4 --> S5["5. Wrap-up: you, advisor & coordinator adjust direction and plan"]
-  S5 -->|next task| S3
-  S5 -->|project done| S6["6. Conclusions to the project's docs"]
+  D["Agree Direction"] --> P["Coordinator drafts Plan / Brief; advisor reviews as needed"]
+  P --> U["User approves task"]
+  U --> W["Worker executes; scope separation first, worktree if edits overlap"]
+  W --> R["Report with evidence; coordinator chooses review tier"]
+  W -.->|"hard question"| Q["User decision"]
+  Q -.-> W
+  R --> L["Records / docs: coordinator checks"]
+  R --> O["Ordinary code: worker tests + diff review"]
+  R --> A["Critical paths: fresh auditor runs checks"]
+  R --> G["Compute arms: pre-launch review + worker early gate"]
+  L --> K["Coordinator accepts; explicit-path commit if needed"]
+  O --> K
+  A --> K
+  G --> K
+  K --> S["Short Wrap-up summary; user decision; adjust Plan"]
+  S --> P
 ```
 
-- **Direction and Plan**: you and the coordinator agree `Direction`; coordinator and advisor negotiate numbered tasks in `Plan`, and user approval is recorded in `Decisions`.
-- **Per-task approval**: before each task runs, coordinator and advisor draft its `Brief` and record your approval (`approved: user, yyyy-mm-dd`, `status: approved`); no automatic continuation occurs without approval.
-- **Parallel lines and hard questions**: multiple approved tasks can run concurrently on `main` or `side` lines; step-level questions stay with the coordinator, while hard questions (science, scope, budget, risk, failed gates) go to you first.
-- **Wrap-up and closure**: after each task, advisor and coordinator negotiate results, lessons, and next work with you to adjust `Direction`/`Plan`; when the project closes, durable conclusions move to the project's own docs.
+The [core skill](skills/cowork/SKILL.md#task-loop) owns task approval, stop gates, ownership, and closure. `cw start` enforces the task/parent approval gate; records remain `running` through review until the coordinator accepts them.
 
-```mermaid
-flowchart TD
-  C["Coordinator: cw start steps (approved task)"] --> W["Worker: run steps, update own State; cw lock take before an exclusive phase"]
-  W -.->|"BLOCKED + cw report"| B{"Coordinator: step Q?"}
-  B -.->|"hard Q"| U(("You"))
-  U -.->|"decide"| B
-  B -.->|"unblock"| W
-  W -->|"cw report: phase / done"| R["Coordinator: read report & evidence"]
-  R -->|"done"| A["Auditor (fresh): run code / checks, write findings"]
-  A -->|"findings + cw report"| K["Coordinator: review findings, accept & commit"]
-  K -.->|"fix step"| C
-  K --> E["Wrap-up: result, lessons, next; You & Advisor"]
-```
+| Review tier | Review evidence |
+|---|---|
+| Records, docs, routine plans | Coordinator's link/fact/citation check; high-risk claims may need an auditor |
+| Ordinary code | Relevant worker tests and coordinator diff review |
+| Critical paths: training/sampling/scoring, release, safety | Fresh auditor's executed checks and findings in the task output folder |
+| Compute/GPU arms | Brief/config review before launch, worker early gate, independent reading for quantitative claims; passed runs are not repeated |
 
-- **Launch gate**: `cw start` blocks unapproved tasks and worker steps whose parent task is not approved (`approved`, `running`, or `blocked`); advisor steps, parentless steps, and `kind: seat` records bypass that gate.
-- **Work and reporting**: each worker writes only its own `State` (using `--worktree` when two or more coders edit the same repo concurrently) and runs `cw report "<conclusion>; <path>"` only at stop conditions (`BLOCKED: <reason>`), named phase transitions, or completion; `cw report --to <task>` sends to a live task terminal and copies the coordinator.
-- **Failure classes**: unexpected failures stop and report state-changing work (launches, shared environments, deleting or moving data); re-runnable work (tests, analysis, scratch outputs) fixes its own code and continues, stopping only at a decision gate, a frozen value, a shared dependency, or a budget limit.
-- **Execution context**: never infer missing hardware or services from a sandbox error; recheck in the intended execution context and record where the probe ran.
-- **Fresh audit**: an independent, fresh-session `auditor` runs code/checks, verifies advisor facts before user decisions, and writes findings to a file.
-- **Acceptance and commits**: coders and auditors never stage or commit; the coordinator accepts from the audit findings and commits (merging worktrees when used).
-- **Worker Git limits**: workers never run `git reset --hard`, `git checkout -- .`, `git restore .`, `git clean`, or `git push --force`.
-- **Authoritative rules**: see [skill cowork](skills/cowork/SKILL.md#task-loop) for the complete collaboration rules.
+For parallel edits, assign disjoint scopes first. `cw new --worktree` creates `.worktrees/<task>` and a task branch when file overlap or checkout isolation requires it; records stay in the main checkout through `COWORK_ROOT`. The coordinator integrates accepted changes with explicit paths and removes retired branches/checkouts. See the skill's [review and Git rules](skills/cowork/SKILL.md#escalation-and-review).
 
 ## Resources and locks
 
 - List only exclusive resources in the project's `## Resources` section (`<name>: <description>`), separating distinct exclusive phases (such as `training-code` and `gpu`). Resource locks never gate `cw start`, so CPU prep can run while another task holds a GPU lock.
 - **Queue and acquire**: the coordinator sets or clears the single queue head with `cowork/cw lock next <resource> <task|->`; the worker runs fresh host/resource checks, then runs `cowork/cw lock take <resource>` immediately before the exclusive phase.
 - **Advisory estimate**: the holder may call `cowork/cw lock expect <resource> <time>` to notify the successor and coordinator (`estimate != release`; never permits early launch; writes no `State` line).
-- **Release and stale recovery**: the holder calls `cowork/cw lock release <resource> [--evidence <path>] [--note <text>]`, freeing the lock before sending notifications, preserving the queue head, and adding one `State` line. `cowork/cw status` flags closed, missing, or exited holders with `! stale holder` (never auto-released); only a coordinator seat may recover one with `--force`.
+- **Release and stale recovery**: the holder calls `cowork/cw lock release <resource> [--evidence <path>] [--note <text>]`, freeing the lock before sending notifications, preserving the queue head, and adding one `State` line. `cowork/cw status` flags closed, missing, or exited holders with `! stale holder` (never auto-released); only a coordinator seat may recover one with `--force --holder <yyyymmdd/task>`. The expected holder is validated and compared under the lock; missing, malformed, or mismatched holders exit 1 without changing the lock.
 - **Storage**: extensionless TSV files at `cowork/locks/<resource>` storing `yyyymmdd/<task>` identities, serialized with `fcntl.flock` on `cowork/locks/.flock` and shared across worktrees through `COWORK_ROOT`.
+
+Lock commands return 1 for a pre-mutation error and 3 for a mutation followed by a notification or receipt-write failure (including `expect`); 2 denotes a blocked operation. After 3 or an ambiguous error, inspect `cw status` and the holder/since fields before retrying. `--holder` protects a different task's acquisition, but cannot distinguish a later acquisition by the same task. Bootstrap by taking the initial lock before queuing its successor; multi-resource phase ordering is described in the [resource rules](skills/cowork/SKILL.md#resources).
 
 ## Records, Wrap-up, and lessons
 
-- Daily records live at `cowork/yyyymmdd/<task>.md` and are never moved; each seat writes only its own file and edits frontmatter only through `cowork/cw set`. Task, project, and resource names match `[a-z0-9]([a-z0-9-]{0,18}[a-z0-9])?`; terminal names are `yyyymmdd-<task>` (with `-2`..`-9` collision suffixes).
-- **Phase records**: each Brief names phase transitions; record resource release, data return, and task closure separately in `State`, each with time and an evidence path. Archiving remains separate.
-- **Evidence and corrections**: never rewrite, rename, or delete executed outputs, logs, or receipts; append `CORRECTION <date>: <what>; <evidence>; supersedes <line>` to a wrong record, and redo a wrong output as a newly named run, recording which run supersedes which.
-- **Conclusions and acceptance**: edit conclusions and docs directly with a dated line in the Wrap-up or project `Decisions`; never rerun passed acceptance, and correct wrong acceptance with an appended line. Monitoring metrics used for training or selection are never independent acceptance.
-- Finish each task with a `## Wrap-up`: result, where, 1–3 `- lesson:` lines, proposed next, and user decision (recorded only when received). Legacy `size:` headers and `debrief` / `## Debrief` records remain readable.
-- `cowork/cw index` regenerates `cowork/README.md` (active tasks grouped by project and line, plus closed tasks from the last 7 days, <=60 lines).
-- `cowork/cw lessons [yyyymmdd]` refreshes `From tasks` in `cowork/lessons/<date>.md` from Wrap-up and legacy Debrief lessons without overwriting `Takeaways`; run `cowork-consolidate` weekly or when `cowork/lessons/README.md` exceeds its cap.
-- `cowork/cw lint` prints the installed `cowork/kit-version` (or `unknown` for an older project), checks caps (`Goal` <=3, `State` <=10, `Handover` <=20, `lessons/README.md` <=40, `cowork/README.md` <=60), validates project status and task headers/names, and lists exact duplicate lines longer than 40 characters.
+The [record rules](skills/cowork/SKILL.md#records-and-messages) specify ownership and immutable evidence; [cowork-consolidate](skills/cowork-consolidate/SKILL.md) covers rolling State, Decisions/Plan, lessons, overview/handover, archives, outputs/scratch, and memory.
+
+- `cw report "<conclusion>; <path>"` sends a task-prefixed message to the coordinator. `--to <task>` resolves the sender's day first, otherwise the newest matching record, sends to its live terminal, and copies the coordinator; an absent target falls back to coordinator only. Each direct destination gets a delivery receipt.
+- Report sends allow up to three attempts of about 180 seconds each, within one shared 10-minute budget for the whole command (including both destinations with `--to`). Before a retry, the target screen is read; a visible payload counts as delivered without resending. Progress goes to stderr; only the final outcome creates a receipt. Task delivery, keys, launches, and other notifications retain their existing behavior.
+- Failed coordinator reports append `REPORT (undelivered):`; a later exact payload/destination match appends `REPORT (delivered):` without deleting the failure. Ordinary first-try coordinator deliveries add no State line. `cw status` flags unresolved receipts, including closed or unassigned tasks; different payloads/destinations stay separate and a later failure reopens the flag.
+- `cw index` regenerates the <=60-line overview with active tasks/seats grouped by project/line and those closed in the last 7 days. Steps are folded into counts on their parent task lines (same-day parent first, otherwise newest); standalone steps remain in daily records. Overflow fails without replacing the overview.
+- `cw lessons [yyyymmdd]` refreshes daily From tasks from Wrap-up/legacy Debrief lessons and preserves Takeaways. The coordinator confirms Takeaways with the user.
+- `cw lint` prints the installed kit version, validates headers/project status, and checks nonempty section lines: Goal <=3, State <=10, Handover <=20, project Decisions <=20. File caps are lessons README <=40 and overview <=60; archived project histories are excluded from Decisions checks. Exact duplicate lines longer than 40 characters are diagnostic.
+
+Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` remain readable. Use `cw set` to update frontmatter. A worker's Wrap-up provides result, evidence, lessons, proposed next, and the received user decision; the coordinator presents the short summary and controls acceptance/closure.
 
 ## Coordinator handover
 
@@ -203,7 +216,7 @@ flowchart TD
 
 - Without `HC_TERMINAL_ID`, `cw init --apply` sets `cowork/coordinator.addr` to `- -`; record commands (`project new`, `new`, `set`, `seat set`, `index`, `lessons`, `lint`, and lock state changes) work offline.
 - `cowork/cw start <taskfile>` (or `--print` anytime) prints the exact `hc` launch commands without launching or editing records; `cowork/cw check <taskfile>` prints the `hc get` command plus the last 3 `State` lines.
-- `cowork/cw status` lists only non-closed tasks with an assigned terminal (skipping closed tasks and `terminal: -`), reporting `Herdr unavailable` while still flagging `BLOCKED:` in their `State`, plus closed or missing stale lock holders.
+- `cowork/cw status` lists active assigned terminals plus any task with unresolved report receipts, reporting `Herdr unavailable` while still flagging `BLOCKED:` in their `State`, plus closed or missing stale lock holders.
 - `cowork/cw report` appends `REPORT (undelivered): ...` to `State`, prints a `Relay to coordinator:` line for manual relay, and exits 1; `cowork/cw handover` requires `HC_TERMINAL_ID`.
 
 Long seats launch with `--no-parent`; short seats explicitly use `--parent <caller t-id>`. Both retain the caller's `herdr.space` label. Since hc does not send blocked/exit notes for parentless seats to the coordinator, the coordinator runs `cw status` whenever a report arrives and at each scheduled check.
@@ -212,7 +225,7 @@ Long seats launch with `--no-parent`; short seats explicitly use `--parent <call
 
 - **Wrong terminal identity after resuming Claude Code**: a resumed session may run tools with another session's `HC_TERMINAL_ID`. Check `echo $HC_TERMINAL_ID` against `cowork/coordinator.addr`; if you are the recorded coordinator, pin the correct value, for example `HC_TERMINAL_ID=t22 cowork/cw start <taskfile>`. Callers without `COWORK_TASK` are checked before `start`, `lock next`, coordinator `lock take` / `release --force`, `handover context|tokens`, and `seat set`. Seat callers, `handover --accept`, `report`, and operation without Herdr are unaffected.
 
-- **Trust and permission prompts**: `cw start` and `cw handover` invoke `cw approve` only for (a) a folder-trust prompt matching the exact project root, or (b) an `agy` permission prompt for a plain `cowork/cw ...` command (choosing "always allow in this conversation"). Any other or repeated unmatched prompt exits 2 with the screen tail without pressing keys; inspect with `hc read <t> --lines 0` and answer manually, or run `cowork/cw approve <t>` on a recognized prompt.
+- **Trust and permission prompts**: `cw start` and `cw handover` invoke `cw approve` only for (a) a folder-trust prompt matching the exact project root (or the task’s assigned worktree during `cw start`), or (b) an `agy` permission prompt for a plain `cowork/cw ...` command (choosing "always allow in this conversation"). Standalone `cw approve` stays root-only; sibling folders are not allowed. Any other or repeated unmatched prompt exits 2 with the screen tail without pressing keys; inspect with `hc read <t> --lines 0` and answer manually, or run `cowork/cw approve <t>` on a recognized prompt.
 - **Codex start exits with an account error**: if Codex (or another agent) exits early while its task is known to be undelivered (for example, an account or routing error on startup), `cw start` reads and prints the screen tail, removes that failed terminal record, and relaunches once with the same name under the original 120 s startup deadline. A second early exit (or cleanup failure) prints the screen tail and stops without updating the task header; inspect the printed tail (and `hc read <name> --lines 0` if the second terminal remains), check Codex login/account status, and rerun `cowork/cw start <taskfile>`. Delivered or ambiguous task deliveries are never relaunched, and `cw handover` does not auto-relaunch.
 - **Nested projects asking about external `CLAUDE.md` imports**: `cw init` adds `@AGENTS.md` to `CLAUDE.md`. In a nested project where Claude Code asks whether to allow external `CLAUDE.md` imports, `cw approve` intentionally refuses to press keys (exits 2 with the screen tail) because it is not a recognized root folder-trust prompt; confirm or decline the dialog manually in Herdr.
 - **agy status lag**: Herdr can report `agy` as `done` before generation finishes. Wait for the seat's `cw report` message rather than terminal status alone, and check progress with `cowork/cw check <taskfile>`.
@@ -228,16 +241,16 @@ Long seats launch with `--no-parent`; short seats explicitly use `--parent <call
 | `cw seats` | Print `cowork/seats.tsv` |
 | `cw seat set [--args='...'] <seat> <agent> <model> <effort> [life]` | Update one seat row (omit `--args` to preserve; `--args=-` clears) and append a `State` entry |
 | `cw project new <name>` | Create `cowork/projects/<name>.md` |
-| `cw new <task> --seat <seat> (--kind task\|step \| --size large\|small) [--project <name>] [--line main\|side\|-] [--parent <task>] [--agent agent:model:effort[:life]] [--worktree]` | Create `cowork/<today>/<task>.md` (and optional `.worktrees/<task>`) |
+| `cw new <task> --seat <seat> (--kind task\|step \| --size large\|small) [--project <name>] [--line main\|side\|-] [--parent <task>] [--agent agent:model:effort[:life]] [--args='...'] [--worktree]` | Create `cowork/<today>/<task>.md` (and optional `.worktrees/<task>`) |
 | `cw set <taskfile> key=value ...` | Edit validated task frontmatter fields |
 | `cw start <taskfile> [--print]` | Launch a gated task/step in Herdr, or print launch commands |
 | `cw check <taskfile>` | Show terminal `hc get` status and last 3 `State` lines |
 | `cw approve <terminal>` | Answer a recognized root trust or `agy` `cowork/cw` prompt (exit 2 otherwise) |
-| `cw status` | List non-closed tasks with assigned terminals (`blocked`, `error`, `exited`, `BLOCKED:`) and locks (`! stale holder`) |
+| `cw status` | List active assigned terminals and unresolved reports (`blocked`, `error`, `exited`, `BLOCKED:`, `undelivered report`) and locks (`! stale holder`) |
 | `cw lock next <resource> <task\|->` | Coordinator sets or clears the single queue head |
 | `cw lock take <resource>` | Acquire an available or queued lock for the caller task |
 | `cw lock expect <resource> <time>` | Send an advisory release estimate to successor and coordinator |
-| `cw lock release <resource> [--evidence <path>] [--note <text>] [--force]` | Release lock, notify successor/coordinator, write one `State` line (`--force`: coordinator only) |
+| `cw lock release <resource> [--evidence <path>] [--note <text>] [--force --holder <yyyymmdd/task>]` | Release lock, notify successor/coordinator, write one `State` line (`--force --holder`: coordinator only; post-mutation failure exits 3) |
 | `cw report [--to <task>] "<conclusion>; <path>"` | Report to coordinator (and optionally a live task terminal) |
 | `cw handover [context\|tokens \| --accept]` | Launch a successor coordinator or accept `coordinator.addr` |
 | `cw index` | Regenerate `cowork/README.md` |

@@ -646,7 +646,7 @@ class CWTests(unittest.TestCase):
         self.cw('start', p, '--print', env={'HC_TERMINAL_ID': 't1'})
         self.cw('lock', 'next', 'gpu', '-', live=True)
         self.cw('lock', 'take', 'gpu', live=True)
-        self.cw('lock', 'release', 'gpu', '--force', live=True)
+        self.cw('lock', 'release', 'gpu', '--force', '--holder', f'{DAY}/coordinator', live=True)
         self.cw('seat', 'set', 'advisor', 'codex', 'model', 'high', live=True)
 
     def test_identity_guard_exempts_seats_offline_accept_and_report(self):
@@ -660,13 +660,13 @@ class CWTests(unittest.TestCase):
         coord_env = {'HC_TERMINAL_ID': 't99', 'COWORK_TASK': str(coordinator)}
         self.cw('lock', 'next', 'gpu', '-', env=coord_env)
         self.cw('lock', 'take', 'gpu', env=coord_env)
-        self.cw('lock', 'release', 'gpu', '--force', env=coord_env)
+        self.cw('lock', 'release', 'gpu', '--force', '--holder', f'{DAY}/coordinator', env=coord_env)
         self.cw('seat', 'set', 'advisor', 'codex', 'model', 'high', env=coord_env)
         self.cw('start', p, '--print')
         self.cw('seat', 'set', 'advisor', 'codex', 'model', 'high')
         self.cw('lock', 'next', 'gpu', '-')
         self.cw('lock', 'take', 'gpu')
-        self.cw('lock', 'release', 'gpu', '--force', code=1)  # release succeeds; report is offline
+        self.cw('lock', 'release', 'gpu', '--force', '--holder', f'{DAY}/coordinator', code=3)  # release succeeds; report is offline
         self.cw('report', 'identity exemption; result.md', env={'HC_TERMINAL_ID': 't99'})
         self.assertTrue(any(c[:2] == ['send', 't1'] for c in self.calls()))
         self.cw('handover', '--accept', env={'HC_TERMINAL_ID': 't99'})
@@ -1892,15 +1892,16 @@ sys.exit(namespace['main']())
         peer = self.new('peer', size='small')
         self.cw('set', peer, 'terminal=peer (t7)')
         error = {'kind': 'unavailable', 'message': 'transport failed'}
-        for errors, target_result, coordinator_result in (([error, None], 'undelivered', 'delivered'),
-                                                        ([None, error], 'delivered', 'undelivered')):
+        for errors, target_result, coordinator_result in (([error, error, error, None], 'undelivered', 'delivered'),
+                                                        ([None, error, error, error], 'delivered', 'undelivered')):
             with self.subTest(errors=errors):
                 self.configure(send_errors=errors)
                 self.log.with_suffix('.send').unlink(missing_ok=True)
                 self.clear_calls()
                 result = self.cw('report', '--to', 'peer', 'ready; result.md', live=True,
                                  env={'COWORK_TASK': str(sender)}, code=1)
-                self.assertEqual([c[1] for c in self.calls() if c[0] == 'send'], ['t7', 't1'])
+                self.assertEqual([c[1] for c in self.calls() if c[0] == 'send'],
+                                 ['t7', 't7', 't7', 't1'] if target_result == 'undelivered' else ['t7', 't1', 't1', 't1'])
                 self.assertIn(f'REPORT to peer (t7) ({target_result})', result.stdout)
                 self.assertIn(f'REPORT to coordinator (t1) ({coordinator_result})', result.stdout)
                 self.assertEqual('Relay to coordinator:' in result.stdout, coordinator_result == 'undelivered')
@@ -2152,7 +2153,7 @@ sys.exit(99)
         ignore = self.root / '.gitignore'
         ignore.write_bytes(b'local-files\r\ncache')
         self.install()
-        self.assertEqual(ignore.read_bytes(), b'local-files\r\ncache\n.worktrees/\n')
+        self.assertEqual(ignore.read_bytes(), b'local-files\r\ncache\r\ncowork/\r\noutput/\r\n.scratch/\r\n.tmp/\r\n.worktrees/\r\n')
         before = self.snapshot()
         self.cw('init', '--apply')
         self.assertEqual(before, self.snapshot())

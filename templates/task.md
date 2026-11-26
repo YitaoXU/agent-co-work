@@ -6,6 +6,7 @@ line: {line}            # main | side | -
 parent: {parent}
 seat: {seat}
 agent: -
+args: -
 terminal: -
 worktree: -
 status: draft           # draft | approved | running | blocked | wrap-up | closed

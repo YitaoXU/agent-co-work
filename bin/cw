@@ -36,7 +36,7 @@ APPROVALS = {
 TASK_RE = re.compile(r'[a-z0-9]([a-z0-9-]{0,18}[a-z0-9])?')
 BEGIN = '<!-- agent-co-work:begin v1 -->'
 END = '<!-- agent-co-work:end -->'
-FIELDS = {'task', 'kind', 'size', 'project', 'line', 'parent', 'seat', 'agent', 'terminal', 'status', 'approved', 'worktree'}
+FIELDS = {'task', 'kind', 'size', 'project', 'line', 'parent', 'seat', 'agent', 'args', 'terminal', 'status', 'approved', 'worktree'}
 TASK_SIZES = ('large', 'small', 'seat')
 KINDS = {'large': 'task', 'small': 'step', 'seat': 'seat'}
 TASK_STATUSES = ('draft', 'approved', 'running', 'blocked', 'wrap-up', 'debrief', 'closed')
@@ -135,7 +135,7 @@ def inside(root, path):
     return p
 
 
-def write(root, path, text, executable=False):
+def write(root, path, text, executable=False, on_commit=None):
     p = inside(root, path)
     p.parent.mkdir(parents=True, exist_ok=True)
     mode = stat.S_IMODE(p.stat().st_mode) if p.exists() else None
@@ -149,6 +149,8 @@ def write(root, path, text, executable=False):
         if executable:
             replacement.chmod(replacement.stat().st_mode | 0o111)
         replacement.replace(p)
+        if on_commit is not None:
+            on_commit()
 
 
 def root_for(args):
@@ -367,6 +369,7 @@ def validate_task_header(values, path=None):
         if values['status'] == 'debrief':
             values['status'] = 'wrap-up'
         agent_override(values.get('agent', '-'))
+        extra_argv(values.get('args', '-'))
     except CWError as exc:
         raise CWError(f'{path}: {exc}' if path is not None else str(exc)) from exc
 
@@ -384,7 +387,12 @@ def header(text, path=None, task=True):
     for line in lines[1:end]:
         if ':' in line:
             k, v = line.split(':', 1)
-            values[k.strip()] = re.split(r'\s+#', v.strip(), maxsplit=1)[0].rstrip()
+            if k.strip() == 'args':
+                comment = seat_comment(v)
+                v = v.rstrip('\r\n')
+                values['args'] = (v[:-len(comment)] if comment else v).strip()
+            else:
+                values[k.strip()] = re.split(r'\s+#', v.strip(), maxsplit=1)[0].rstrip()
     if task:
         validate_task_header(values, path)
     return values, lines, end
@@ -463,8 +471,13 @@ def edit_header(text, changes, path=None):
             continue
         for i in range(1, end):
             if lines[i].split(':', 1)[0].strip() == k:
-                comment = re.search(r'\s+#.*', lines[i].rstrip('\n'))
-                lines[i] = f'{k}: {v}' + (comment[0] if comment else '') + '\n'
+                if k == 'args':
+                    comment = seat_comment(lines[i])
+                    suffix = '  ' + comment if comment else ''
+                else:
+                    match = re.search(r'\s+#.*', lines[i].rstrip('\n'))
+                    suffix = match[0] if match else ''
+                lines[i] = f'{k}: {v}' + suffix + '\n'
                 break
     validate_task_header({**values, **changes}, path)
     return ''.join(lines)
@@ -636,10 +649,21 @@ def overview(root, address=None, extra=None):
     entries = [(p, read(p)) for p in task_paths(root)]
     if extra:
         entries.append(extra)
-    for p, text in entries:
-        v = header(text, p)[0]
+    records = {p: header(text, p)[0] for p, text in entries}
+    counts = {}
+    for p, v in records.items():
+        if v['kind'] == 'step' and v.get('parent', '-') != '-':
+            parent = resolve_task(root, p, v['parent'])
+            if parent in records and records[parent]['kind'] == 'task':
+                counts[parent] = counts.get(parent, 0) + 1
+    for p, v in records.items():
+        if v['kind'] == 'step':
+            continue
         path = p.relative_to(root / 'cowork').as_posix()
         row = f'- [{v["task"]}]({path}) | {v["seat"]} | {v["status"]} | {v["terminal"]}'
+        if v['kind'] == 'task':
+            count = counts.get(p, 0)
+            row += f' | {count} step' + ('' if count == 1 else 's')
         if v['status'] != 'closed':
             groups.setdefault((v['project'], v['line']), []).append(row)
         day = dt.datetime.strptime(p.parent.name, '%Y%m%d').date()
@@ -714,8 +738,14 @@ def init(root, args):
     ignore = inside(root, '.gitignore')
     old_ignore = read(ignore) if ignore.exists() else ''
     new_ignore = old_ignore
-    if '.worktrees/' not in old_ignore.splitlines():
-        new_ignore += ('\n' if old_ignore and not old_ignore.endswith('\n') else '') + '.worktrees/\n'
+    missing = [entry for entry in ('cowork/', 'output/', '.scratch/', '.tmp/', '.worktrees/')
+               if entry not in old_ignore.splitlines()]
+    if missing and fresh and not args.upgrade:
+        newline = '\r\n' if '\r\n' in old_ignore else '\n'
+        new_ignore += (newline if old_ignore and not old_ignore.endswith('\n') else '') + newline.join(missing) + newline
+        print('.gitignore: add ' + ', '.join(missing))
+    elif missing:
+        print('Note: existing installation or --upgrade; .gitignore unchanged; missing defaults: ' + ', '.join(missing))
     actions.append(('.gitignore', 'unchanged' if old_ignore == new_ignore else 'append' if ignore.exists() else 'create', new_ignore))
     for path, content in contents.items():
         p = inside(root, path)
@@ -802,6 +832,7 @@ def launch_plan(root, path, values, seat, name, prompt, caller_info, handover=Fa
     fmt = dict(seat, name=name, prompt=prompt)
     args += [part.format(**fmt) for part in ADAPTERS[seat['agent']]]
     args += extra_argv(seat.get('args', '-'))
+    args += extra_argv(values.get('args', '-'))
     commands = [args]
     if seat['agent'] in ('codex', 'agy'):
         rename = ['hc', 'keys', name, *['space' if c == ' ' else c for c in f'/rename {name}'], 'enter', '--json']
@@ -978,7 +1009,7 @@ def approve_claude_trust(root, name, seen, screen, deadline, required, repeats):
         return True
 
 
-def approve(root, name, agent=None, seen=None, screen=None, required=True, deadline=None, repeats=0):
+def approve(root, name, agent=None, seen=None, screen=None, required=True, deadline=None, repeats=0, allowed_folder=None):
     deadline = time.monotonic() + STARTUP_TIMEOUT if deadline is None else deadline
     if screen is None:
         screen = hc('read', name, '--lines', '0', raw=True, deadline=deadline)
@@ -1002,6 +1033,12 @@ def approve(root, name, agent=None, seen=None, screen=None, required=True, deadl
                 candidates = [foreground[0] if foreground else '', status.get('app') or '', argv[0] if argv else '']
                 agent = next((Path(candidate).name for candidate in candidates if Path(candidate).name in APPROVALS), None)
     keys = approval_keys(root, screen, agent, cwd)
+    if keys is None and allowed_folder is not None:
+        folder = inside(root, allowed_folder)
+        keys = approval_keys(folder, screen, agent, cwd)
+        if keys is not None:
+            # Pin the matched folder for Claude's stability and CWD guards.
+            root = folder
     if agent == 'claude' and (info.get('state') == 'finished' or status.get('state') not in ('blocked', None)):
         keys = None
     identity = claude_trust_identity(root, name, screen) if agent == 'claude' else screen
@@ -1024,7 +1061,7 @@ def approve(root, name, agent=None, seen=None, screen=None, required=True, deadl
     return True
 
 
-def wait_ready(name, root, agent, deadline=None, approved=None, accept_path=None, task_delivered=False):
+def wait_ready(name, root, agent, deadline=None, approved=None, accept_path=None, task_delivered=False, allowed_folder=None):
     deadline = time.monotonic() + STARTUP_TIMEOUT if deadline is None else deadline
     approved = set() if approved is None else approved
     unmatched, repeats = None, 0
@@ -1068,7 +1105,7 @@ def wait_ready(name, root, agent, deadline=None, approved=None, accept_path=None
                 unmatched, repeats = None, 0
             answered = approve(root, name, agent, approved, screen=screen,
                                required=status == 'blocked' and repeats >= 3, deadline=deadline,
-                               repeats=repeats)
+                               repeats=repeats, allowed_folder=allowed_folder)
             if answered:
                 unmatched, repeats = None, 0
             if accept_path is not None or (status == 'blocked' and not answered):
@@ -1083,9 +1120,11 @@ def wait_ready(name, root, agent, deadline=None, approved=None, accept_path=None
         return data
 
 
-def execute_launch(commands, root, agent, deadline=None, approved=None, accept_path=None, retry_early_exit=False, prompt=None, on_delivered=None):
+def execute_launch(commands, root, agent, deadline=None, approved=None, accept_path=None, retry_early_exit=False, prompt=None, on_delivered=None, allowed_folder=None):
     deadline = time.monotonic() + STARTUP_TIMEOUT if deadline is None else deadline
     approved = set() if approved is None else approved
+    # Only start extends exact-root trust to the exact assigned checkout.
+    allowed_folder = inside(root, allowed_folder) if allowed_folder is not None else None
     for attempt in range(2 if retry_early_exit else 1):
         result = terminal(hc(*commands[0][1:], deadline=deadline))
         tid = result.get('address')
@@ -1106,7 +1145,7 @@ def execute_launch(commands, root, agent, deadline=None, approved=None, accept_p
                 hc('read', tid, '--lines', '0', raw=True, deadline=deadline)
                 if agent != 'claude':
                     raise CWError(f'Launch task was not delivered to {tid}; inspect hc read before retrying.')
-                wait_ready(tid, root, agent, deadline, approved)
+                wait_ready(tid, root, agent, deadline, approved, allowed_folder=allowed_folder)
                 task_attempted = True
                 send_ready(tid, prompt if prompt is not None else commands[0][-1], deadline)
                 delivered = True
@@ -1117,7 +1156,7 @@ def execute_launch(commands, root, agent, deadline=None, approved=None, accept_p
                 if cmd[1] == 'wait':
                     wait_ready(tid, root, agent, deadline, approved,
                                accept_path=accept_path if agent == 'claude' else None,
-                               task_delivered=delivered)
+                               task_delivered=delivered, allowed_folder=allowed_folder)
                 elif cmd[1] == 'keys':
                     hc('keys', tid, *cmd[3:], deadline=deadline)
                 else:
@@ -1180,7 +1219,8 @@ def start(root, args):
         for cmd in commands:
             print(shlex.join(cmd))
         return
-    tid = launch_task(commands, root, p, name, seat['agent'], deadline, retry_early_exit=True, prompt=prompt)
+    tid = launch_task(commands, root, p, name, seat['agent'], deadline, retry_early_exit=True, prompt=prompt,
+                      allowed_folder=inside(root, worktree) if worktree != '-' else root)
     print(f'{name} ({tid})')
 
 
@@ -1202,16 +1242,50 @@ def check(root, args):
     print('\n'.join([line for line in section(text, 'State').splitlines() if line.strip()][-3:]))
 
 
+def unresolved_reports(text):
+    unresolved = set()
+    for line in section(text, 'State').splitlines():
+        match = re.fullmatch(r'- REPORT(?: to (.+?))? \((undelivered|delivered|skipped)\): (.*)', line)
+        if not match:
+            continue
+        destination, outcome, payload = match.groups()
+        if outcome == 'skipped':
+            continue
+        if destination:
+            destination = re.sub(r' \([^()]+\)$', '', destination)
+            # New receipts delimit even empty details with a JSON string, so
+            # brackets in a payload or transport error cannot change its key.
+            detail = re.search(r' \[detail: "(?:\\.|[^"\\])*"\]$', payload)
+            if detail:
+                payload = payload[:detail.start()]
+            elif payload.endswith(']') and (outcome == 'undelivered' or ' [same terminal as target;' in payload):
+                # Legacy direct receipts used a plain bracketed detail suffix.
+                depth = 0
+                for index in range(len(payload) - 1, -1, -1):
+                    depth += (payload[index] == ']') - (payload[index] == '[')
+                    if depth == 0:
+                        if index and payload[index - 1] == ' ':
+                            payload = payload[:index - 1]
+                        break
+        key = (destination or 'coordinator', payload)
+        if outcome == 'undelivered':
+            unresolved.add(key)
+        else:
+            unresolved.discard(key)
+    return unresolved
+
+
 def status(root):
     for p in task_paths(root):
         text = read(p)
         values = header(text, p)[0]
         tid = task_terminal(values)
-        if values['status'] == 'closed' or tid == '-':
+        pending = unresolved_reports(text)
+        if (values['status'] == 'closed' or tid == '-') and not pending:
             continue
         flags = []
         observed = 'Herdr unavailable'
-        if os.environ.get('HC_TERMINAL_ID'):
+        if tid != '-' and os.environ.get('HC_TERMINAL_ID'):
             try:
                 info = terminal(hc('get', tid, '--json'))
                 agent_state = (info.get('status') or {}).get('state') or 'unknown'
@@ -1225,6 +1299,8 @@ def status(root):
                 flags.append('unavailable')
         if 'BLOCKED:' in section(text, 'State'):
             flags.append('BLOCKED: in State')
+        if pending:
+            flags.append('undelivered report')
         print(f'{p.relative_to(root)}: {tid} {observed}' + (' ! ' + ', '.join(flags) if flags else ''))
     for path in sorted((root / 'cowork/locks').glob('*')):
         if path.name.startswith('.') or not path.is_file():
@@ -1287,55 +1363,77 @@ def resource_lock(root, args):
     path = inside(root, directory / args.resource)
     # The guard is never replaced: every process flocks the same inode, while
     # individual lock records are atomically replaced inside the critical section.
-    with inside(root, directory / '.flock').open('a') as guard:
-        fcntl.flock(guard, fcntl.LOCK_EX)
-        holder, since, expected, successor = read_lock(path)
-        now = dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')
-        if args.action == 'next':
-            successor = next_task
-        elif args.action == 'take':
-            if holder not in ('-', caller) or successor not in ('-', caller):
-                raise CWError(f'Lock {args.resource} unavailable: holder={holder}, next={successor}.')
-            if holder == '-':
-                since, expected = now, '-'
-            holder, successor = caller, '-'
-        elif args.action == 'expect':
-            if holder != caller:
-                raise CWError('Only the holder may set expected release.')
-            expected = args.value
-        elif args.action == 'release':
-            if args.force and not coordinator:
-                raise CWError('Only a coordinator seat may force release.')
-            if holder != caller and not (args.force and coordinator):
-                raise CWError('Only the holder may release (or coordinator with --force).')
-            holder, since, expected = '-', now, '-'
-        write(root, path, '\t'.join((holder, since, expected, successor)) + '\n')
-    print(f'lock {args.resource}: holder={holder} expected={expected} next={successor}')
-    if args.action not in ('release', 'expect'):
+    mutated = False
+    def mark_committed():
+        nonlocal mutated
+        mutated = True
+    try:
+        with inside(root, directory / '.flock').open('a') as guard:
+            fcntl.flock(guard, fcntl.LOCK_EX)
+            holder, since, expected, successor = read_lock(path)
+            now = dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')
+            if args.action == 'next':
+                successor = next_task
+            elif args.action == 'take':
+                if holder not in ('-', caller) or successor not in ('-', caller):
+                    raise CWError(f'Lock {args.resource} unavailable: holder={holder}, next={successor}.')
+                if holder == '-':
+                    since, expected = now, '-'
+                holder, successor = caller, '-'
+            elif args.action == 'expect':
+                if holder != caller:
+                    raise CWError('Only the holder may set expected release.')
+                expected = args.value
+            elif args.action == 'release':
+                requested_holder = getattr(args, 'holder', None)
+                if bool(args.force) != (requested_holder is not None):
+                    raise CWError('--force and --holder must be supplied together.')
+                if args.force:
+                    task_reference(requested_holder)
+                    if holder != requested_holder:
+                        raise CWError(f'Expected holder {requested_holder}; actual holder {holder}.')
+                if args.force and not coordinator:
+                    raise CWError('Only a coordinator seat may force release.')
+                if holder != caller and not (args.force and coordinator):
+                    raise CWError('Only the holder may release (or coordinator with --force).')
+                holder, since, expected = '-', now, '-'
+            write(root, path, '\t'.join((holder, since, expected, successor)) + '\n', on_commit=mark_committed)
+        print(f'lock {args.resource}: holder={holder} expected={expected} next={successor}')
+        if args.action not in ('release', 'expect'):
+            return 0
+        evidence = getattr(args, 'evidence', None) or str(sender.relative_to(root))
+        note = f' Note: {args.note}' if getattr(args, 'note', None) else ''
+        conclusion = (f'LOCK {args.resource} released' + (' (forced)' if getattr(args, 'force', False) else '')
+                      if args.action == 'release' else f'LOCK {args.resource} expected release {expected}; estimate != release')
+        text = f'{conclusion}{note}; {evidence}'
+        message = f'[{caller}] {text}'
+        address = read(inside(root, 'cowork/coordinator.addr')).split()
+        outcomes = []
+        def record(destination, outcome, detail=''):
+            outcomes.append(f'{destination}: {outcome}' + (f' ({" ".join(detail.split())})' if detail else ''))
+        if successor != '-':
+            result = report_to(root, sender, successor, text, message, address, recorder=record)
+        else:
+            delivered, detail = send_report(address[0] if address else '-', message)
+            record('coordinator', 'delivered' if delivered else 'undelivered', detail)
+            result = 0 if delivered else 1
+            if not delivered:
+                print(f'Relay to coordinator: {message}')
+        if args.action == 'release':
+            write(root, sender, state_append(read(sender), text + ' [' + '; '.join(outcomes) + ']'))
+        for outcome in outcomes:
+            print(outcome)
+        if result:
+            raise CWError('Lock notification was not delivered.')
         return 0
-    evidence = getattr(args, 'evidence', None) or str(sender.relative_to(root))
-    note = f' Note: {args.note}' if getattr(args, 'note', None) else ''
-    conclusion = (f'LOCK {args.resource} released' + (' (forced)' if getattr(args, 'force', False) else '')
-                  if args.action == 'release' else f'LOCK {args.resource} expected release {expected}; estimate != release')
-    text = f'{conclusion}{note}; {evidence}'
-    message = f'[{caller}] {text}'
-    address = read(inside(root, 'cowork/coordinator.addr')).split()
-    outcomes = []
-    def record(destination, outcome, detail=''):
-        outcomes.append(f'{destination}: {outcome}' + (f' ({" ".join(detail.split())})' if detail else ''))
-    if successor != '-':
-        result = report_to(root, sender, successor, text, message, address, recorder=record)
-    else:
-        delivered, detail = send_report(address[0] if address else '-', message)
-        record('coordinator', 'delivered' if delivered else 'undelivered', detail)
-        result = 0 if delivered else 1
-        if not delivered:
-            print(f'Relay to coordinator: {message}')
-    if args.action == 'release':
-        write(root, sender, state_append(read(sender), text + ' [' + '; '.join(outcomes) + ']'))
-    for outcome in outcomes:
-        print(outcome)
-    return result
+    except Exception as exc:
+        if not mutated:
+            raise
+        try:
+            print(f'Lock mutated; post-mutation delivery/receipt failed: {exc}. Inspect cw status before retrying.', file=sys.stderr)
+        except Exception:
+            pass  # Diagnostics must not replace the committed-mutation status.
+        return 3
 
 
 def send_report(address, message, deadline=None):
@@ -1348,16 +1446,44 @@ def send_report(address, message, deadline=None):
         return False, str(exc)
 
 
+def retry_report(address, message, payload, deadline):
+    if not os.environ.get('HC_TERMINAL_ID') or address == '-':
+        return send_report(address, message)
+    detail = 'Report deadline expired; delivery unconfirmed.'
+    for attempt in range(1, 4):
+        if time.monotonic() >= deadline:
+            return False, 'Report deadline expired; delivery unconfirmed.'
+        print(f'waiting for target (draft or busy), attempt {attempt}/3', file=sys.stderr)
+        if attempt > 1:
+            try:
+                screen = hc('read', address, '--lines', '0', raw=True,
+                            deadline=min(deadline, time.monotonic() + 60))
+            except CWError as exc:
+                detail = str(exc)
+                continue  # Do not resend without inspecting the target first.
+            screen = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', screen)
+            if ' '.join(payload.split()) in ' '.join(screen.split()):
+                return True, 'report visible on target screen'
+        delivered, detail = send_report(address, message, deadline=min(deadline, time.monotonic() + 180))
+        if delivered:
+            return True, detail
+    return False, detail
+
+
 def report(root, args):
+    deadline = time.monotonic() + 600
     p, text, values = load_task(root, own_task(root))
     if '\n' in args.text or '\r' in args.text or ';' not in args.text:
         raise CWError('Report must be one line: <conclusion>; <path>')
     message = f'[{values["task"]}] {args.text}'
     address = read(inside(root, 'cowork/coordinator.addr')).split()
     if args.to:
-        return report_to(root, p, args.to, args.text, message, address)
-    delivered, detail = send_report(address[0] if address else '-', message)
+        return report_to(root, p, args.to, args.text, message, address, deadline=deadline)
+    delivered, detail = retry_report(address[0] if address else '-', message, args.text, deadline)
+    text = read(p)
     if delivered:
+        if ('coordinator', args.text) in unresolved_reports(text):
+            write(root, p, state_append(text, f'REPORT (delivered): {args.text}'))
         print('Report delivered.')
         return 0
     print(detail, file=sys.stderr)
@@ -1366,7 +1492,10 @@ def report(root, args):
     return 1
 
 
-def report_to(root, sender, target, text, message, address, recorder=None):
+def report_to(root, sender, target, text, message, address, recorder=None, deadline=None):
+    def send(destination):
+        return (send_report(destination, message) if deadline is None
+                else retry_report(destination, message, text, deadline))
     path = resolve_task(root, sender, target)
     tid, reason = '-', 'task record not found'
     if path:
@@ -1378,7 +1507,8 @@ def report_to(root, sender, target, text, message, address, recorder=None):
         reason = 'Herdr unavailable'
         if live:
             try:
-                info = terminal(hc('get', tid, '--json'))
+                info = terminal(hc('get', tid, '--json',
+                                   deadline=min(deadline, time.monotonic() + 60) if deadline is not None else None))
                 target_live = info.get('state') == 'live'
                 reason = f'terminal {tid} is not live'
             except CWError as exc:
@@ -1392,12 +1522,12 @@ def report_to(root, sender, target, text, message, address, recorder=None):
             return
         # Tool errors can span multiple lines; each delivery occupies one State line.
         detail = ' '.join(detail.split())
-        line = f'REPORT to {destination} ({outcome}): {text}' + (f' [{detail}]' if detail else '')
+        line = f'REPORT to {destination} ({outcome}): {text} [detail: {json.dumps(detail, ensure_ascii=False)}]'
         write(root, sender, state_append(read(sender), line))
         print(line)
 
     if target_live:
-        target_ok, detail = send_report(tid, message)
+        target_ok, detail = send(tid)
         record(f'{target} ({tid})', 'delivered' if target_ok else 'undelivered', detail)
         results.append(target_ok)
     else:
@@ -1407,7 +1537,7 @@ def report_to(root, sender, target, text, message, address, recorder=None):
         coordinator_ok = target_ok
         detail = 'same terminal as target; sent once' + (f'; {detail}' if detail else '')
     else:
-        coordinator_ok, detail = send_report(coordinator, message)
+        coordinator_ok, detail = send(coordinator)
     record(f'coordinator ({coordinator})', 'delivered' if coordinator_ok else 'undelivered', detail)
     results.append(coordinator_ok)
     if not coordinator_ok:
@@ -1514,6 +1644,9 @@ def lint(root):
                 validate_project(root, p.stem)
             except CWError as exc:
                 violations.append(str(exc))
+            count = len([line for line in section(text, 'Decisions').splitlines() if line.strip()])
+            if count > 20:
+                violations.append(f'{rel}: Decisions has {count} lines (cap 20)')
         if p in task_paths(root):
             try:
                 task_name(p.stem)
@@ -1573,6 +1706,7 @@ def parser():
     q.add_argument('--line', choices=('main', 'side', '-'), default='-')
     q.add_argument('--parent')
     q.add_argument('--agent', default='-', help='Task override: agent:model:effort[:life]; omitted life inherits the seat')
+    q.add_argument('--args', default='-', help='Extra agent arguments appended after seat args; use --args="..." for leading flags')
     q.add_argument('--worktree', action='store_true')
     q = command('project', 'Create a project record')
     r = q.add_subparsers(dest='action', required=True).add_parser('new')
@@ -1588,6 +1722,7 @@ def parser():
             r.add_argument('--evidence')
             r.add_argument('--note')
             r.add_argument('--force', action='store_true')
+            r.add_argument('--holder', help='Expected yyyymmdd/task identity; required with --force')
     q = command('set', 'Edit task header fields')
     q.add_argument('taskfile')
     q.add_argument('fields', nargs='+')
@@ -1646,7 +1781,7 @@ def main():
             if path.exists():
                 raise CWError(f'Task already exists: {path}')
             text = new_text(args.task, args.kind or KINDS[args.size], args.parent, args.seat, args.project, args.line)
-            text = edit_header(text, {'agent': args.agent}, path)
+            text = edit_header(text, {'agent': args.agent, 'args': args.args}, path)
             if args.worktree:
                 git_check = subprocess.run(['git', 'rev-parse', '--is-inside-work-tree'], cwd=root, text=True, capture_output=True)
                 if git_check.returncode or git_check.stdout.strip() != 'true':

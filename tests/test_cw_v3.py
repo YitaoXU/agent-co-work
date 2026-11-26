@@ -170,7 +170,7 @@ class V3Tests(unittest.TestCase):
         self.cw('project', 'new', 'campaign')
         for name, line in (('arm', 'main'), ('cleanup', 'side')):
             self.record(name, 'task', 'coder-heavy', '--project', 'campaign', '--line', line)
-        self.record('standalone')
+        self.record('standalone', 'task')
         self.cw('index')
         text = (self.root / 'cowork/README.md').read_text()
         for line in ('main', 'side'):
@@ -305,7 +305,7 @@ class V3Tests(unittest.TestCase):
         with mock.patch.dict(os.environ, {'COWORK_TASK': str(a), 'HC_TERMINAL_ID': 't2'}), \
              mock.patch.object(module, 'send_report', side_effect=send), \
              mock.patch.object(module, 'hc', return_value={'state': 'live'}):
-            self.assertEqual(module.resource_lock(self.root, args), 1)
+            self.assertEqual(module.resource_lock(self.root, args), 3)
         self.assertEqual([address for address, _ in snapshots], ['t9', 't1'])
         self.assertTrue(all(text.startswith('-\t') for _, text in snapshots))
         state = module.section(a.read_text(), 'State')
@@ -341,9 +341,9 @@ class V3Tests(unittest.TestCase):
         self.lock('take', task=a)
         self.cw('set', a, 'status=closed')
         self.assertIn('! stale holder', self.cw('status').stdout)
-        self.lock('release', 'gpu', '--force', task=a, code=1)
+        self.lock('release', 'gpu', '--force', '--holder', self.identity(a), task=a, code=1)
         self.lock('release', code=1)  # coordinator needs force
-        result = self.lock('release', 'gpu', '--force', '--evidence', 'evidence.txt', code=1)
+        result = self.lock('release', 'gpu', '--force', '--holder', self.identity(a), '--evidence', 'evidence.txt', code=3)
         self.assertIn('Relay to coordinator:', result.stdout)
         self.assertTrue((self.root / 'cowork/locks/gpu').read_text().startswith('-\t'))
         self.assertNotIn('lock gpu:', self.cw('status').stdout)

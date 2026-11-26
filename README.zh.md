@@ -3,7 +3,7 @@
 # agent-co-work
 
 一套可移植的多智能体协作套件，适用于类 Unix 主机（macOS/Linux）上的任意项目目录，基于 Herdr（`hc`）与单个标准库 Python CLI（`cw`）构建。
-你与协调员商定方向、批准每个任务、裁决重大问题，并与顾问及协调员共同复盘结果。
+你与协调员商定方向、批准每个任务、裁决重大问题，并审阅协调员给出的结论优先摘要；顾问按需提供审阅。
 任意席位都可运行任意受支持的 agent CLI（`claude`、`codex`、`agy`）；三 agent 配置仅作示例，权威协作规则以 [cowork 技能](skills/cowork/SKILL.md#task-loop) 为准。
 
 ## 快速开始
@@ -81,7 +81,7 @@
 
 **Kit 版本**：首次安装的计划显示 `kit: to <sha>`，版本有变化的升级显示 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出已安装版本和 `Caps OK.`，供你与计划核对。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。部署前检查有关 kit 文件未提交改动或使用开发仓库的告警。
 
-**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将四个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）复制到 `.claude/skills/` 和 `.agents/skills/`；如缺失则向 `.gitignore` 追加 `.worktrees/`、向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。普通 init 保留已有内容，对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
+**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将四个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）复制到 `.claude/skills/` 和 `.agents/skills/`；首次安装时向 `.gitignore` 追加缺失的 `cowork/`、`output/`、`.scratch/`、`.tmp/`、`.worktrees/`（计划中列出），向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。已有安装的普通 init 和 `--upgrade` 逐字节保留 `.gitignore`，缺少默认项时提示。普通 init 保留其他已有内容，对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
 
 ### 使用 Herdr 应用
 
@@ -131,66 +131,79 @@ Herdr 负责显示空间（space）、标签页（tab）和窗格（pane），`h
 - **修改席位默认值**：初始化阶段可传 `--seat <seat>=<agent>:<model>:<effort>:<life>`（`args` 在初始化后配置）；初始化完成后运行 `cowork/cw seat set [--args='...'] <seat> <agent> <model> <effort> [short|long]`（更新 `cowork/seats.tsv`、保留注释，并在调用方记录中追加一行 `State`）。`--args='...'` 替换额外适配器选项（例如 `--args='--sandbox workspace-write'` 或 `'--config "label=two words"'`），省略 `--args` 则保留现有 `args`，`--args=-` 用于清空；切换适配器时请清空或替换不兼容的选项。
 - **为单个任务指定 agent**：向 `cowork/cw new` 传入 `--agent <agent>:<model>:<effort>[:<life>]`，或运行 `cowork/cw set <taskfile> agent=<agent>:<model>:<effort>[:<life>]`（`agent=-` 恢复席位默认值）。省略 `life` 时沿用席位设置，且单任务覆盖会保留该席位的 `args`（因此当席位带有特定适配器的 `args` 时，切换适配器前需先清空或更新这些 `args`）；席位的角色和命名规则保持不变。
 
+- **单任务额外参数**：`cw new ... --args='-a never'` 或 `cw set <taskfile> 'args=-a never'` 将任务参数追加在席位参数之后，三种适配器一致。`args=-` 仅清空任务参数；旧记录缺少该字段时视为空。使用 shell 风格引号但不执行 shell 展开；`args: --label "run # 1" # comment` 保留引号中的井号。无人值守选项只放在需要它的任务上。
+
+## 默认项目布局
+
+项目可在 `AGENTS.md` 中声明文件存放覆盖规则，安装不会搬动现有文件。首次安装在计划中列出并追加缺失的忽略项；已有安装的普通 init 和 upgrade 均逐字节保留 `.gitignore`，缺少默认项时提示。忽略的证据是本地文件，备份由项目负责。
+
+| 路径 | 内容 | 首次安装时 Git 跟踪 | 持久证据 |
+|---|---|---|---|
+| `docs/` | 日常指南、设计、已接受结论 | 跟踪 | 是 |
+| `docs/archive/` | 过时文字稿的带日期汇编 | 跟踪 | 是 |
+| `cowork/` | 每日记录、项目、席位、锁、教训 | 忽略 | 是，本地记录 |
+| `output/<yyyymmdd>/<task>/` | 结果、审计发现、日志、汇总的 `log.md` | 忽略 | 是，保护引用路径 |
+| `.scratch/` | 主机本地操作回执、调度文件 | 忽略 | 仅操作回执 |
+| `.tmp/` | 可丢弃的克隆、沙箱、探测 | 忽略 | 否，先导出必要证据 |
+| `.worktrees/` | 可选的隔离检出 | 忽略 | 否，合并或结项后清理 |
+
+各类文件的生命周期、上限和历史位置见 [归纳技能](skills/cowork-consolidate/SKILL.md)。
+
 ## 运行流程
 
 ```mermaid
 flowchart TD
-  S1["1. 方向（Direction）：你与协调员"] --> S2["2. 计划（Plan）：协调员与顾问商议，再交由你确认"]
-  S2 --> S3["3. 每个任务前：协调员与顾问起草 Brief，你来批准"]
-  S3 --> S4["4. 执行任务（main 或 side 线，可并行；见图 2）"]
-  S4 -.->|"重大问题"| You(("你"))
-  You -.->|"拍板"| S4
-  S4 --> S5["5. 复盘（Wrap-up）：你、顾问与协调员调整方向和计划"]
-  S5 -->|"下一个任务"| S3
-  S5 -->|"项目完成"| S6["6. 将结论沉淀到项目文档"]
+  D["商定 Direction"] --> P["协调员起草 Plan / Brief；按需由顾问审阅"]
+  P --> U["用户批准任务"]
+  U --> W["执行任务；优先分离修改范围，文件重叠时用 worktree"]
+  W --> R["汇报与证据；协调员选择审查层级"]
+  W -.->|"重大问题"| Q["用户决策"]
+  Q -.-> W
+  R --> L["记录 / 文档：协调员检查"]
+  R --> O["普通代码：执行席位测试 + 差异审阅"]
+  R --> A["关键路径：新会话审计员运行检查"]
+  R --> G["计算实验：启动前审阅 + 执行席位早期验收"]
+  L --> K["协调员验收；需要时按明确路径提交"]
+  O --> K
+  A --> K
+  G --> K
+  K --> S["简短 Wrap-up 摘要；用户决策；调整 Plan"]
+  S --> P
 ```
 
-- **方向与计划**：你与协调员商定 `Direction`；协调员与顾问商议 `Plan` 中带编号的任务，用户批准后记入 `Decisions`。
-- **逐任务审批**：每个任务运行前，由协调员与顾问起草其 `Brief` 并记录你的批准（`approved: user, yyyy-mm-dd`，`status: approved`）；未经批准绝不自动继续。
-- **并行线路与重大问题**：多个已批准任务可在 `main` 或 `side` 线上并行运行；步骤级问题由协调员处理，重大问题（科学判断、范围、预算、风险、关卡失败）先交由你决定。
-- **复盘与结项**：每个任务完成后，顾问与协调员同你商议结果、经验教训和下一步工作以调整 `Direction`/`Plan`；项目关闭时，将长期有效的结论整理到项目自身文档中。
+任务批准、停止条件、写入归属与结项以 [核心技能](skills/cowork/SKILL.md#task-loop) 为准。`cw start` 检查任务及父任务的批准关卡；审查期间记录保持 `running`，由协调员验收。
 
-```mermaid
-flowchart TD
-  C["协调员：用 cw start 启动步骤（已批准的任务）"] --> W["执行席位：按步执行，更新自身 State；独占阶段前执行 cw lock take"]
-  W -.->|"BLOCKED + cw report"| B{"协调员：步骤级问题？"}
-  B -.->|"重大问题"| U(("你"))
-  U -.->|"拍板"| B
-  B -.->|"解除阻塞"| W
-  W -->|"cw report：阶段 / 完成"| R["协调员：阅读汇报与证据"]
-  R -->|"完成"| A["审计员（新会话）：运行代码 / 检查，写下发现"]
-  A -->|"发现 + cw report"| K["协调员：审阅发现、验收并提交"]
-  K -.->|"修复步骤"| C
-  K --> E["复盘（Wrap-up）：结果、教训、下一步；你与顾问"]
-```
+| 审查层级 | 审查证据 |
+|---|---|
+| 记录、文档、常规计划 | 协调员核查链接、事实和引用；高风险主张可交审计员 |
+| 普通代码 | 执行席位相关测试、协调员差异审阅 |
+| 训练/采样/评分、发布、安全等关键路径 | 新会话审计员实际运行检查，发现写入任务输出目录 |
+| 计算/GPU 实验 | 启动前 Brief/配置审阅、执行席位早期验收、定量主张独立阅读；通过的运行不重跑 |
 
-- **启动关卡**：`cw start` 会拦截未批准的任务，以及父任务未处于已批准状态（`approved`、`running` 或 `blocked`）的执行步骤；顾问步骤、无父任务步骤和 `kind: seat` 记录不受此限制。
-- **执行与汇报**：每个执行席位只写自己的 `State`（两名及以上编码者并发修改同一仓库时必须使用 `--worktree`），仅在触发停止条件（`BLOCKED: <reason>`）、达到 Brief 指定的阶段切换点或完成时调用 `cw report "<conclusion>; <path>"`；`cw report --to <task>` 会发往目标任务的活跃终端并抄送协调员。
-- **失败分类**：启动、共享环境、删除或移动数据等会改变状态的工作发生意外失败时，停止并汇报；测试、分析和临时产物等可重跑工作自行修复代码并继续，仅在遇到决策关卡、冻结值、共享依赖或预算上限时停止。
-- **执行环境**：不得仅凭沙箱内的错误判定硬件或服务缺失；须在预期执行环境中重新核验，并记录探测实际运行的位置。
-- **独立审计**：独立的全新会话 `auditor` 实际运行代码/检查、在用户决策前核验顾问陈述的事实，并将发现写入文件。
-- **验收与提交**：编码者与审计员绝不暂存或提交；协调员依据审计发现完成验收并执行提交（使用 worktree 时同步合并）。
-- **执行席位 Git 限制**：执行席位绝不运行 `git reset --hard`、`git checkout -- .`、`git restore .`、`git clean` 或 `git push --force`。
-- **权威规则**：完整协作规范请参见 [cowork 技能](skills/cowork/SKILL.md#task-loop)。
+并行编辑优先分离修改范围。文件重叠或需要隔离检出时，`cw new --worktree` 创建 `.worktrees/<task>` 和任务分支；通过 `COWORK_ROOT` 将记录保留在主检出中。协调员以明确路径整合已接受的变更，并清理退役分支和检出。详见技能中的 [审查与 Git 规则](skills/cowork/SKILL.md#escalation-and-review)。
 
 ## 资源与锁
 
 - 仅在项目的 `## Resources` 节中列出独占资源（`<name>: <description>`），并将不同的独占阶段拆分列出（例如 `training-code` 与 `gpu`）。资源锁从不阻塞 `cw start`，因此在其他任务持有 GPU 锁期间，CPU 预处理仍可并行运行。
 - **排队与获取**：协调员用 `cowork/cw lock next <resource> <task|->` 设置或清空唯一队首；执行席位在进入独占阶段前先做实时主机/资源检查，随后立即运行 `cowork/cw lock take <resource>`。
 - **参考预计时间**：持锁方可用 `cowork/cw lock expect <resource> <time>` 通知后继任务与协调员（`estimate != release`，绝不代表可提前启动，也不写入 `State` 行）。
-- **释放与过期恢复**：持锁方运行 `cowork/cw lock release <resource> [--evidence <path>] [--note <text>]`，先释放锁再发送通知，保留队首设置，并写入一条 `State` 行。`cowork/cw status` 会为已关闭、缺失或已退出的持锁方标出 `! stale holder`（绝不自动释放）；仅协调员席位可使用 `--force` 强制恢复。
+- **释放与过期恢复**：持锁方运行 `cowork/cw lock release <resource> [--evidence <path>] [--note <text>]`，先释放锁再发送通知，保留队首设置，并写入一条 `State` 行。`cowork/cw status` 会为已关闭、缺失或已退出的持锁方标出 `! stale holder`（绝不自动释放）；仅协调员席位可使用 `--force --holder <yyyymmdd/task>` 强制恢复。预期持有者在锁内校验和比较；缺失、格式错误或不匹配时退出码为 1，锁不改变。
 - **存储方式**：以无扩展名 TSV 文件存于 `cowork/locks/<resource>`，记录 `yyyymmdd/<task>` 标识，通过 `cowork/locks/.flock` 上的 `fcntl.flock` 串行化，并借助 `COWORK_ROOT` 在各 worktree 间共享。
+
+锁命令在变更前失败时返回 1，变更后通知或回执写入失败时返回 3（包括 `expect`）；2 表示操作被阻塞。遇到 3 或结果不明确时，重试前先用 `cw status` 检查 holder/since。`--holder` 能保护其他任务的获取，但不能区分同一任务后来再次获取；不得盲目重试。首次持有者先 take 再设置后继队首；多资源阶段的顺序见 [资源规则](skills/cowork/SKILL.md#resources)。
 
 ## 记录、Wrap-up 与经验教训
 
-- 每日记录存放在 `cowork/yyyymmdd/<task>.md` 且路径永不移动；每个席位只写自己的记录文件，且只能通过 `cowork/cw set` 修改 frontmatter。任务、项目与资源名须匹配 `[a-z0-9]([a-z0-9-]{0,18}[a-z0-9])?`；终端名为 `yyyymmdd-<task>`（冲突时加 `-2`..`-9` 后缀）。
-- **阶段记录**：每份 Brief 指明阶段切换点；资源释放、数据回传和任务关闭分别记入 `State`，每项均附时间与证据路径。归档也单独记录。
-- **证据与更正**：已执行的输出、日志和回执永不改写、改名或删除；错误记录须追加 `CORRECTION <date>: <what>; <evidence>; supersedes <line>`，错误输出须以新名称重跑，并记录哪次运行取代哪次运行。
-- **结论与验收**：结论和文档直接修改，并在 Wrap-up 或项目 `Decisions` 中留下带日期的说明；已通过的验收不重跑，错误验收须追加更正行。用于训练或选择的监测指标绝不能作为独立验收。
-- 每个任务结束时填写 `## Wrap-up`：结果、产物位置、1–3 条 `- lesson:`、建议的下一步以及用户决策（仅在收到后记录）。旧版 `size:` 头部和 `debrief` / `## Debrief` 记录仍可读取。
-- `cowork/cw index` 重新生成 `cowork/README.md`（按项目和线路分组的活跃任务，以及近 7 天内已关闭任务，上限 60 行）。
-- `cowork/cw lessons [yyyymmdd]` 从 Wrap-up 和旧版 Debrief 的教训中刷新 `cowork/lessons/<date>.md` 的 `From tasks` 节，同时保留 `Takeaways` 不被覆盖；每周或当 `cowork/lessons/README.md` 超过行数上限时运行 `cowork-consolidate`。
-- `cowork/cw lint` 输出已安装的 `cowork/kit-version`（旧项目为 `unknown`），检查行数上限（`Goal` <=3、`State` <=10、`Handover` <=20、`lessons/README.md` <=40、`cowork/README.md` <=60），校验项目状态及任务头部/命名，并列出超过 40 个字符的完全重复行。
+[记录规则](skills/cowork/SKILL.md#records-and-messages) 定义写入归属与不可变证据；[cowork-consolidate](skills/cowork-consolidate/SKILL.md) 覆盖 State、Decisions/Plan、教训、概览/交接、归档、输出/临时文件和记忆。
+
+- `cw report "<conclusion>; <path>"` 向协调员发送带任务前缀的消息。`--to <task>` 优先解析发送方同日记录，否则使用最新同名记录，发送给活跃目标并抄送协调员；目标缺失则只通知协调员。每个直接收件方都有送达回执。
+- 报告发送最多尝试三次，每次约 180 秒，整条命令共用 10 分钟预算（含 `--to` 的两个收件方）。每次重试前读取目标屏幕；正文已显示则视为送达，不再重发。进度写入 stderr，仅最终结果产生回执。任务投递、按键、启动及其他通知保持原有行为。
+- 协调员报告失败时追加 `REPORT (undelivered):`；随后相同正文和目的地送达时追加 `REPORT (delivered):`，保留失败记录。普通首次成功不新增 State 行。`cw status` 标记未解决回执，包括已关闭或未分配终端的任务；不同正文/目的地互不消除，再次失败会重新标记。
+- `cw index` 生成不超过 60 行的概览：按项目/线路分组的活跃 task/seat，以及近 7 天关闭的记录。step 汇总为父任务行上的计数（同日父任务优先，否则最新）；无父任务的 step 留在每日记录中。溢出时失败，不覆盖概览。
+- `cw lessons [yyyymmdd]` 从 Wrap-up/旧 Debrief 刷新每日 From tasks，保留 Takeaways；协调员与用户确认 Takeaways。
+- `cw lint` 打印安装版本、校验头部和项目状态，并检查非空节行数：Goal <=3、State <=10、Handover <=20、项目 Decisions <=20。文件上限为教训 README <=40、概览 <=60；项目历史归档不受 Decisions 检查。超过 40 字符的完全重复行仅作为诊断。
+
+任务模板包含 `args: -`，旧 `size:` 和 `debrief` / `## Debrief` 仍可读取。用 `cw set` 修改头部。执行席位的 Wrap-up 提供结果、证据、教训、下一步和已收到的用户决策；协调员给出简短摘要并负责验收/结项。
 
 ## 协调员交接
 
@@ -203,7 +216,7 @@ flowchart TD
 
 - 未设置 `HC_TERMINAL_ID` 时，`cw init --apply` 会将 `cowork/coordinator.addr` 设为 `- -`；记录类命令（`project new`、`new`、`set`、`seat set`、`index`、`lessons`、`lint` 以及锁状态操作）均可离线运行。
 - `cowork/cw start <taskfile>`（或随时加上 `--print`）会打印准确的 `hc` 启动命令，不实际启动也不修改记录；`cowork/cw check <taskfile>` 会打印 `hc get` 命令及最后 3 条 `State` 行。
-- `cowork/cw status` 仅列出已分配终端的非关闭任务（跳过已关闭任务和 `terminal: -`），显示 `Herdr unavailable`，同时仍会标出其 `State` 中的 `BLOCKED:` 以及已关闭或缺失的过期锁持有者。
+- `cowork/cw status` 列出活跃且已分配终端的任务，以及任何有未解决报告回执的任务，显示 `Herdr unavailable`，同时仍会标出其 `State` 中的 `BLOCKED:` 以及已关闭或缺失的过期锁持有者。
 - `cowork/cw report` 会向 `State` 追加 `REPORT (undelivered): ...`、打印供人工转发的 `Relay to coordinator:` 行并以退出码 1 退出；`cowork/cw handover` 必须依赖 `HC_TERMINAL_ID`。
 
 长席位以 `--no-parent` 启动，短席位显式使用 `--parent <调用方 t-id>`；两者均保留调用方的 `herdr.space` 标签。无父终端的席位不会通过 hc 向协调员发送阻塞或退出通知，因此协调员每次收到报告和每次定期检查时都运行 `cw status`。
@@ -212,7 +225,7 @@ flowchart TD
 
 - **恢复 Claude Code 后终端身份错误**：恢复的会话可能使用另一个会话的 `HC_TERMINAL_ID` 运行工具。用 `echo $HC_TERMINAL_ID` 与 `cowork/coordinator.addr` 核对；若你确实是记录中的协调员，请固定正确值，例如 `HC_TERMINAL_ID=t22 cowork/cw start <taskfile>`。未设置 `COWORK_TASK` 的调用方会在 `start`、`lock next`、协调员的 `lock take` / `release --force`、`handover context|tokens` 和 `seat set` 前接受身份检查。席位调用方、`handover --accept`、`report` 及无 Herdr 的操作不受影响。
 
-- **信任与权限提示**：`cw start` 和 `cw handover` 仅在以下两种情况调用 `cw approve`：(a) 路径与项目根目录精确匹配的文件夹信任提示；(b) `agy` 对普通 `cowork/cw ...` 命令的权限提示（选择 "always allow in this conversation"）。其他任何提示或重复出现的不匹配提示都会输出屏幕末尾内容并以退出码 2 中止，不会按键；可用 `hc read <t> --lines 0` 查看并手动处理，或对可识别提示运行 `cowork/cw approve <t>`。
+- **信任与权限提示**：`cw start` 和 `cw handover` 仅在以下两种情况调用 `cw approve`：(a) 路径与项目根目录精确匹配的文件夹信任提示（`cw start` 中也可为任务指定的 worktree）；(b) `agy` 对普通 `cowork/cw ...` 命令的权限提示（选择 "always allow in this conversation"）。独立 `cw approve` 仍只接受根目录，同级目录不获准。其他任何提示或重复出现的不匹配提示都会输出屏幕末尾内容并以退出码 2 中止，不会按键；可用 `hc read <t> --lines 0` 查看并手动处理，或对可识别提示运行 `cowork/cw approve <t>`。
 - **Codex 启动因账号错误退出**：若 Codex（或其他 agent）在任务确认尚未送达时提前退出（例如启动时出现账号或路由错误），`cw start` 会读取并打印屏幕末尾内容、移除该失败终端记录，并在原 120 秒启动时限内以相同名称重新启动一次。若第二次仍提前退出（或清理失败），则会打印屏幕末尾并停止，不更新任务头部；请检查打印的尾部输出（若第二个终端仍在，也可运行 `hc read <name> --lines 0`）、排查 Codex 登录/账号状态，再重新执行 `cowork/cw start <taskfile>`。已送达或送达状态不明确的任务绝不会自动重启，且 `cw handover` 不会自动重启。
 - **嵌套项目询问是否允许外部 `CLAUDE.md` 导入**：`cw init` 会向 `CLAUDE.md` 写入 `@AGENTS.md`。在嵌套项目中，Claude Code 可能会询问是否允许导入外部 `CLAUDE.md`；由于这不属于可识别的根目录文件夹信任提示，`cw approve` 会刻意拒绝按键（输出屏幕末尾并以退出码 2 退出），请在 Herdr 中手动确认或拒绝该对话框。
 - **agy 状态滞后**：Herdr 可能在生成结束前就把 `agy` 报告为 `done`。请以席位发出的 `cw report` 消息为准，不要仅凭终端状态判断，并可通过 `cowork/cw check <taskfile>` 查看进展。
@@ -228,16 +241,16 @@ flowchart TD
 | `cw seats` | 打印 `cowork/seats.tsv` |
 | `cw seat set [--args='...'] <seat> <agent> <model> <effort> [life]` | 更新单个席位配置（省略 `--args` 保留原值，`--args=-` 清空）并追加一行 `State` |
 | `cw project new <name>` | 创建 `cowork/projects/<name>.md` |
-| `cw new <task> --seat <seat> (--kind task\|step \| --size large\|small) [--project <name>] [--line main\|side\|-] [--parent <task>] [--agent agent:model:effort[:life]] [--worktree]` | 创建 `cowork/<today>/<task>.md`（及可选的 `.worktrees/<task>`） |
+| `cw new <task> --seat <seat> (--kind task\|step \| --size large\|small) [--project <name>] [--line main\|side\|-] [--parent <task>] [--agent agent:model:effort[:life]] [--args='...'] [--worktree]` | 创建 `cowork/<today>/<task>.md`（及可选的 `.worktrees/<task>`） |
 | `cw set <taskfile> key=value ...` | 编辑经校验的任务 frontmatter 字段 |
 | `cw start <taskfile> [--print]` | 在 Herdr 中启动经关卡检查的任务/步骤，或仅打印启动命令 |
 | `cw check <taskfile>` | 显示终端 `hc get` 状态及最后 3 条 `State` 行 |
 | `cw approve <terminal>` | 自动响应可识别的根目录信任或 `agy` 的 `cowork/cw` 提示（否则退出码 2） |
-| `cw status` | 列出已分配终端的非关闭任务（`blocked`、`error`、`exited`、`BLOCKED:`）及锁状态（`! stale holder`） |
+| `cw status` | 列出活跃已分配终端和未解决报告（`blocked`、`error`、`exited`、`BLOCKED:`、`undelivered report`）及锁状态（`! stale holder`） |
 | `cw lock next <resource> <task\|->` | 协调员设置或清空唯一队首 |
 | `cw lock take <resource>` | 为调用方任务获取空闲或排队就绪的锁 |
 | `cw lock expect <resource> <time>` | 向后继任务与协调员发送参考释放时间 |
-| `cw lock release <resource> [--evidence <path>] [--note <text>] [--force]` | 释放锁、通知后继任务与协调员并写入一条 `State` 行（`--force` 仅限协调员） |
+| `cw lock release <resource> [--evidence <path>] [--note <text>] [--force --holder <yyyymmdd/task>]` | 释放锁、通知后继任务与协调员并写入一条 `State` 行（`--force --holder` 仅限协调员；变更后失败返回 3） |
 | `cw report [--to <task>] "<conclusion>; <path>"` | 向协调员汇报（可选同时发给活跃任务终端） |
 | `cw handover [context\|tokens \| --accept]` | 启动继任协调员或接管 `coordinator.addr` |
 | `cw index` | 重新生成 `cowork/README.md` |
