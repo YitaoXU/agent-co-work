@@ -89,44 +89,22 @@ Herdr shows spaces, tabs, and panes while `herdr-core` (`hc`) runs their termina
 
 1. Open the Herdr app and create a space or tab in the target project folder from the app (the command palette `app.palette` lists every command by name with its key, including `space.new` and `tab.new`, and `app.help` toggles the keys dialog; with no space open, a new tab starts a space).
 2. In that terminal, start Claude Code with `claude -n yyyymmdd-coordinator` (or your chosen coordinator CLI), then paste the [coordinator prompt](#coordinator-prompt) from Quick start.
-3. When launching seats, `cowork/cw start` passes the caller's `herdr.space=<id>` label to `hc run` without `herdr.tab`, so Herdr creates a new tab for each seat in the same space.
+3. When launching seats, `cowork/cw start` passes the caller's `herdr.space=<id>` label to `hc run` without `herdr.tab`, so Herdr creates a new tab for each seat in the same space. Long seats use `--no-parent`; short seats use `--parent <caller t-id>`.
 
 ## Choosing seats
 
 The default three-agent table in `templates/seats.tsv` is only an example. Any seat may use any supported adapter (`claude`, `codex`, `agy`) and any model/effort accepted by that CLI. An optional quoted sixth column `args` (`-` or absent means none) supplies extra adapter CLI options, split with shell-style quoting (inner quotes preserve spaces, no shell expansion) and appended verbatim to the adapter argv.
 
-**Claude Code only** (only `claude` required):
+Each cell lists `agent model effort life`; optional `args` are described above.
 
-| seat | agent | model | effort | life | [args] |
-|---|---|---|---|---|---|
-| `coordinator` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `coordinator-alt` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `advisor` | `claude` | `claude-opus-5-5` | `high` | `short` | `-` |
-| `coder-heavy` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `coder-light` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `auditor` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-
-**Claude Code + Codex** (`claude` and `codex` required):
-
-| seat | agent | model | effort | life | [args] |
-|---|---|---|---|---|---|
-| `coordinator` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `coordinator-alt` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `advisor` | `claude` | `claude-opus-5-5` | `high` | `short` | `-` |
-| `coder-heavy` | `codex` | `gpt-6-astra` | `high` | `long` | `-` |
-| `coder-light` | `codex` | `gpt-6.1-sol` | `max` | `long` | `-` |
-| `auditor` | `codex` | `gpt-6-astra` | `high` | `long` | `-` |
-
-**Claude Code + agy + Codex** (shipped default in `templates/seats.tsv`):
-
-| seat | agent | model | effort | life | [args] |
-|---|---|---|---|---|---|
-| `coordinator` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `coordinator-alt` | `agy` | `gemini-4-neon-xhigh` | `xhigh` | `long` | `-` |
-| `advisor` | `agy` | `gemini-4-neon-xhigh` | `xhigh` | `short` | `-` |
-| `coder-heavy` | `codex` | `gpt-6-astra` | `high` | `long` | `-` |
-| `coder-light` | `codex` | `gpt-6.1-sol` | `max` | `long` | `-` |
-| `auditor` | `codex` | `gpt-6-astra` | `high` | `long` | `-` |
+| seat | Claude Code only | Claude Code + Codex | Claude Code + agy + Codex (shipped default) |
+|---|---|---|---|
+| `coordinator` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` |
+| `coordinator-alt` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `agy gemini-4-neon-xhigh xhigh long` |
+| `advisor` | `claude claude-opus-5-5 high short` | `claude claude-opus-5-5 high short` | `agy gemini-4-neon-xhigh xhigh short` |
+| `coder-heavy` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
+| `coder-light` | `claude claude-opus-5-5 high long` | `codex gpt-6.1-sol max long` | `codex gpt-6.1-sol max long` |
+| `auditor` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
 
 - **Change a seat default**: during init pass `--seat <seat>=<agent>:<model>:<effort>:<life>` (configure `args` afterward); afterward run `cowork/cw seat set [--args='...'] <seat> <agent> <model> <effort> [short|long]` (updates `cowork/seats.tsv`, keeps comments, and appends a `State` line to the caller's record). `--args='...'` replaces extra adapter options (e.g. `--args='--sandbox workspace-write'` or `'--config "label=two words"'`), omitting `--args` preserves existing `args`, and `--args=-` clears them; clear or replace incompatible options when switching adapters.
 - **Name an agent for one task**: pass `--agent <agent>:<model>:<effort>[:<life>]` to `cowork/cw new`, or run `cowork/cw set <taskfile> agent=<agent>:<model>:<effort>[:<life>]` (`agent=-` restores the seat default). Omitted `life` inherits the seat, and task overrides retain the seat's `args` (so switching adapters on a seat with adapter-specific `args` requires clearing or updating those `args` first); the seat keeps its role and naming rules.
@@ -135,7 +113,7 @@ The default three-agent table in `templates/seats.tsv` is only an example. Any s
 
 ## Default project layout
 
-Projects can declare a "where things go" override in `AGENTS.md`; installation does not relocate existing files. Fresh init supplies the ignore entries; upgrades preserve the project's tracking choice. Ignored evidence is local and needs the project's own backup policy.
+Projects can declare a "where things go" override in `AGENTS.md`; installation does not relocate existing files. Ignored evidence is local and needs the project's own backup policy.
 
 | Path | Contents | Fresh-install tracking | Durable evidence |
 |---|---|---|---|
@@ -171,26 +149,15 @@ flowchart TD
   S --> P
 ```
 
-The [core skill](skills/cowork/SKILL.md#task-loop) owns task approval, stop gates, ownership, and closure. `cw start` enforces the task/parent approval gate; records remain `running` through review until the coordinator accepts them.
-
-| Review tier | Review evidence |
-|---|---|
-| Records, docs, routine plans | Coordinator's link/fact/citation check; high-risk claims may need an auditor |
-| Ordinary code | Relevant worker tests and coordinator diff review |
-| Critical paths: training/sampling/scoring, release, safety | Fresh auditor's executed checks and findings in the task output folder |
-| Compute/GPU arms | Brief/config review before launch, worker early gate, independent reading for quantitative claims; passed runs are not repeated |
-
-For parallel edits, assign disjoint scopes first. `cw new --worktree` creates `.worktrees/<task>` and a task branch when file overlap or checkout isolation requires it; records stay in the main checkout through `COWORK_ROOT`. The coordinator integrates accepted changes with explicit paths and removes retired branches/checkouts. See the skill's [review and Git rules](skills/cowork/SKILL.md#escalation-and-review).
+`cw start` enforces the task/parent approval gate; `cw new --worktree` creates `.worktrees/<task>` and a task branch, with records kept in the main checkout through `COWORK_ROOT`; see the skill's [review and Git rules](skills/cowork/SKILL.md#escalation-and-review).
 
 ## Resources and locks
 
-- List only exclusive resources in the project's `## Resources` section (`<name>: <description>`), separating distinct exclusive phases (such as `training-code` and `gpu`). Resource locks never gate `cw start`, so CPU prep can run while another task holds a GPU lock.
-- **Queue and acquire**: the coordinator sets or clears the single queue head with `cowork/cw lock next <resource> <task|->`; the worker runs fresh host/resource checks, then runs `cowork/cw lock take <resource>` immediately before the exclusive phase.
-- **Advisory estimate**: the holder may call `cowork/cw lock expect <resource> <time>` to notify the successor and coordinator (`estimate != release`; never permits early launch; writes no `State` line).
+- **Advisory estimate**: `cowork/cw lock expect <resource> <time>` notifies the successor and coordinator and writes no `State` line.
 - **Release and stale recovery**: the holder calls `cowork/cw lock release <resource> [--evidence <path>] [--note <text>]`, freeing the lock before sending notifications, preserving the queue head, and adding one `State` line. `cowork/cw status` flags closed, missing, or exited holders with `! stale holder` (never auto-released); only a coordinator seat may recover one with `--force --holder <yyyymmdd/task>`. The expected holder is validated and compared under the lock; missing, malformed, or mismatched holders exit 1 without changing the lock.
 - **Storage**: extensionless TSV files at `cowork/locks/<resource>` storing `yyyymmdd/<task>` identities, serialized with `fcntl.flock` on `cowork/locks/.flock` and shared across worktrees through `COWORK_ROOT`.
 
-Lock commands return 1 for a pre-mutation error and 3 for a mutation followed by a notification or receipt-write failure (including `expect`); 2 denotes a blocked operation. After 3 or an ambiguous error, inspect `cw status` and the holder/since fields before retrying. `--holder` protects a different task's acquisition, but cannot distinguish a later acquisition by the same task. Bootstrap by taking the initial lock before queuing its successor; multi-resource phase ordering is described in the [resource rules](skills/cowork/SKILL.md#resources).
+Lock commands return 1 for a pre-mutation error and 3 for a mutation followed by a notification or receipt-write failure (including `expect`). After 3 or an ambiguous error, inspect `cw status` and the holder/since fields before retrying. `--holder` protects a different task's acquisition, but cannot distinguish a later acquisition by the same task. See the [resource rules](skills/cowork/SKILL.md#resources).
 
 ## Records, Wrap-up, and lessons
 
@@ -200,16 +167,14 @@ The [record rules](skills/cowork/SKILL.md#records-and-messages) specify ownershi
 - Report sends allow up to three attempts of about 180 seconds each, within one shared 10-minute budget for the whole command (including both destinations with `--to`). Before a retry, the target screen is read; a visible payload counts as delivered without resending. Progress goes to stderr; only the final outcome creates a receipt. Task delivery, keys, launches, and other notifications retain their existing behavior.
 - Failed coordinator reports append `REPORT (undelivered):`; a later exact payload/destination match appends `REPORT (delivered):` without deleting the failure. Ordinary first-try coordinator deliveries add no State line. `cw status` flags unresolved receipts, including closed or unassigned tasks; different payloads/destinations stay separate and a later failure reopens the flag.
 - `cw index` regenerates the <=60-line overview with active tasks/seats grouped by project/line and those closed in the last 7 days. Steps are folded into counts on their parent task lines (same-day parent first, otherwise newest); standalone steps remain in daily records. Overflow fails without replacing the overview.
-- `cw lessons [yyyymmdd]` refreshes daily From tasks from Wrap-up/legacy Debrief lessons and preserves Takeaways. The coordinator confirms Takeaways with the user.
+- `cw lessons [yyyymmdd]` refreshes daily From tasks from Wrap-up/legacy Debrief lessons and preserves Takeaways.
 - `cw lint` prints the installed kit version, validates headers/project status, and checks nonempty section lines: Goal <=3, State <=10, Handover <=20, project Decisions <=20. File caps are lessons README <=40 and overview <=60; archived project histories are excluded from Decisions checks. Exact duplicate lines longer than 40 characters are diagnostic.
 
-Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` remain readable. Use `cw set` to update frontmatter. A worker's Wrap-up provides result, evidence, lessons, proposed next, and the received user decision; the coordinator presents the short summary and controls acceptance/closure.
+Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` remain readable. Use `cw set` to update frontmatter.
 
 ## Coordinator handover
 
-- Trigger handover around 60% context use, after a Wrap-up, or at end of day after recording recovery context in the outgoing coordinator's `## Handover` section.
-- Run `cowork/cw handover context` to launch a fresh `coordinator`, or `cowork/cw handover tokens` to switch to `coordinator-alt` (and back the same way).
-- The successor launches with `--no-parent` in the caller's Herdr space, reads the outgoing record, `cowork/README.md`, `cowork/projects/`, and active task records, then runs `cowork/cw handover --accept`.
+- Run `cowork/cw handover context` to launch a fresh `coordinator`, `cowork/cw handover tokens` to switch to `coordinator-alt` (or back), or `cowork/cw handover --accept` to accept; see the [handover rules](skills/cowork/SKILL.md#size-limits-consolidation-and-handover).
 - `--accept` writes the successor's terminal ID to `cowork/coordinator.addr`, sends acceptance to the previous coordinator, and logs delivery in its own `State`; the outgoing `cw handover` polls `coordinator.addr` to confirm takeover.
 
 ## Without Herdr
@@ -218,8 +183,6 @@ Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` re
 - `cowork/cw start <taskfile>` (or `--print` anytime) prints the exact `hc` launch commands without launching or editing records; `cowork/cw check <taskfile>` prints the `hc get` command plus the last 3 `State` lines.
 - `cowork/cw status` lists active assigned terminals plus any task with unresolved report receipts, reporting `Herdr unavailable` while still flagging `BLOCKED:` in their `State`, plus closed or missing stale lock holders.
 - `cowork/cw report` appends `REPORT (undelivered): ...` to `State`, prints a `Relay to coordinator:` line for manual relay, and exits 1; `cowork/cw handover` requires `HC_TERMINAL_ID`.
-
-Long seats launch with `--no-parent`; short seats explicitly use `--parent <caller t-id>`. Both retain the caller's `herdr.space` label. Since hc does not send blocked/exit notes for parentless seats to the coordinator, the coordinator runs `cw status` whenever a report arrives and at each scheduled check.
 
 ## Troubleshooting
 
@@ -262,9 +225,9 @@ Long seats launch with `--no-parent`; short seats explicitly use `--parent <call
 ## Known limits
 
 - **Fixed adapter set**: built-in launch and approval adapters support `claude`, `codex`, and `agy`; unknown agents error.
-- **Narrow auto-approval**: `cw approve` presses keys only on exact-root trust prompts and single-command `agy` `cowork/cw` prompts; all other dialogs stop (exit 2) for a human decision.
+- **Narrow auto-approval**: only recognized prompts are automated; see [Troubleshooting](#troubleshooting).
 - **No cryptographic enforcement**: `approved: user, yyyy-mm-dd` and seat roles are validated for format/date, not enforced as a security boundary against manual edits.
-- **Bounded startup retry and manual recovery**: `cw start` relaunches at most once on a confirmed early exit while the task is known to be undelivered (same name, original 120 s startup deadline); a second exit, any delivered or ambiguous task send, any `cw handover` exit, and deadline expiry stop for inspection. Stale locks are flagged (`! stale holder`) and never auto-released.
+- **Bounded startup retry and manual recovery**: see [Troubleshooting](#troubleshooting) for startup recovery; stale locks are flagged (`! stale holder`) and never auto-released.
 - **Naming and visibility caps**: names are 1–20 chars (`[a-z0-9]([a-z0-9-]{0,18}[a-z0-9])?`), collision suffixes stop at `-9`, and callers without a `herdr.space` label launch hidden terminals with a warning.
 - **Unit test scope**: `tests/` uses isolated fake `hc`/`git` binaries, local Git clone fixtures, captured prompt screens, and real competing lock processes; live multi-agent handover is not automated in the suite.
 

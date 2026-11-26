@@ -6,6 +6,7 @@ import importlib.machinery
 import importlib.util
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import signal
@@ -786,6 +787,18 @@ class CWTests(unittest.TestCase):
                     expected += [['keys', 't42', *keys, '--json']]
                 self.assertEqual(self.calls(), expected)
 
+    def test_approve_ansi_wrapped_trust_and_folder(self):
+        module = self.module()
+        for agent, option in (('codex', 'Trust and continue'),
+                              ('claude', 'Yes, I trust this folder'), ('agy', 'Trust folder')):
+            with self.subTest(agent=agent):
+                screen = f'Do you trust this folder?\n{self.root}\n❯ 1. {option}\n  2. No, exit'
+                styled = re.sub(r'\b(trust|folder)\b', lambda m: '\x1b[32m' + m[0] + '\x1b[0m',
+                                screen, flags=re.I)
+                self.assertEqual(module.approval_menu(styled, agent), module.approval_menu(screen, agent))
+                self.assertEqual(module.approval_keys(self.root, styled, agent), ['enter'])
+                self.assertIsNone(module.approval_keys(self.root, styled.replace(str(self.root), str(self.work)), agent))
+
     def test_approve_sanitized_captured_screens(self):
         self.install()
         codex = (SCREENS / 'codex-trust.txt').read_text()
@@ -1031,6 +1044,7 @@ class CWTests(unittest.TestCase):
                 keys = [(when, args[2:-1]) for when, args in calls if args[0] == 'keys']
                 self.assertEqual([args for _, args in keys], expected_keys)
                 self.assertGreaterEqual(keys[0][0], 2)
+                self.assertGreaterEqual(sum(args[0] == 'read' and when <= keys[0][0] for when, args in calls), 2)
                 if len(keys) > 1:
                     self.assertGreaterEqual(keys[-1][0] - keys[0][0], 1)
                 self.assertEqual([args[0] for _, args in calls][-3:], ['read', 'get', 'keys'])
@@ -1059,6 +1073,8 @@ class CWTests(unittest.TestCase):
                         module.approve(root, 't42', 'claude', set(), screen=before)
                 self.assertEqual([call.args[2:-1] for call in calls.call_args_list if call.args[0] == 'keys'],
                                  [('down',)] * (3 if after == before else 1))
+                if after == before:
+                    self.assertLessEqual(elapsed[0], 5)
 
     def test_claude_traced_trust_pathless_confirmation_rechecks_foreground(self):
         module = self.module()
@@ -1116,16 +1132,6 @@ class CWTests(unittest.TestCase):
                 module.approve(self.root, 't42', 'codex', seen, screen=screen)
             calls.assert_called_once_with('keys', 't42', 'enter', '--json', deadline=mock.ANY)
 
-    def test_claude_recheck_trust_waits_before_any_key(self):
-        result, error, _, calls = self.run_recheck_trust()
-        self.assertIsNone(error)
-        self.assertTrue(result)
-        keys = [(when, args[2:-1]) for when, args in calls if args[0] == 'keys']
-        self.assertEqual([args for _, args in keys], [('down',), ('enter',)])
-        self.assertGreaterEqual(keys[0][0], 2)
-        self.assertGreaterEqual(sum(args[0] == 'read' and when <= keys[0][0] for when, args in calls), 2)
-        self.assertGreaterEqual(keys[1][0] - keys[0][0], 1)
-
     def test_claude_recheck_trust_retries_dropped_navigation(self):
         for accepted_on in (2, 3):
             with self.subTest(accepted_on=accepted_on):
@@ -1135,14 +1141,6 @@ class CWTests(unittest.TestCase):
                 keys = [(when, args[2:-1]) for when, args in calls if args[0] == 'keys']
                 self.assertEqual([args for _, args in keys], [('down',)] * accepted_on + [('enter',)])
                 self.assertTrue(all(later[0] - earlier[0] >= 1 for earlier, later in zip(keys, keys[1:])))
-
-    def test_claude_recheck_trust_navigation_retries_are_bounded(self):
-        result, error, elapsed, calls = self.run_recheck_trust(accepted_on=None)
-        self.assertIsNone(result)
-        self.assertEqual(type(error).__name__, 'Blocked')
-        self.assertIn('approval keys were already pressed', str(error))
-        self.assertEqual([args[2:-1] for _, args in calls if args[0] == 'keys'], [('down',)] * 3)
-        self.assertLessEqual(elapsed, 5)
 
     def test_claude_recheck_trust_redraw_restarts_stability_check(self):
         result, error, _, calls = self.run_recheck_trust(redraw=True)
@@ -2148,15 +2146,6 @@ sys.exit(99)
             before = self.snapshot()
             self.cw('new', 'isolated', '--seat', 'coder-heavy', '--size', 'small', '--worktree', code=1)
             self.assertEqual(before, self.snapshot())
-
-    def test_init_appends_worktree_ignore_without_rewriting_existing_bytes(self):
-        ignore = self.root / '.gitignore'
-        ignore.write_bytes(b'local-files\r\ncache')
-        self.install()
-        self.assertEqual(ignore.read_bytes(), b'local-files\r\ncache\r\ncowork/\r\noutput/\r\n.scratch/\r\n.tmp/\r\n.worktrees/\r\n')
-        before = self.snapshot()
-        self.cw('init', '--apply')
-        self.assertEqual(before, self.snapshot())
 
     def test_index_recent_window_and_overflow_preserve_existing_file(self):
         self.install()

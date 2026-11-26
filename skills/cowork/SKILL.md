@@ -59,8 +59,7 @@ Task and resource names match `[a-z0-9-]{1,20}`; terminal names are `yyyymmdd-<t
 Use `cw start` to launch seats (handles adapter naming, startup retries, and one undelivered early-exit relaunch; never relaunches delivered or ambiguous starts; prints commands without `HC_TERMINAL_ID`).
 Report with `cowork/cw report [--to <task>] "<conclusion>; <path>"` (evidence in files) only at stop conditions, named phase transitions, and completion; every other step goes only into `State`.
 The coordinator reads the cited evidence before presenting conclusions and waits for `cw report`, not terminal `done` status (which can lag or fire early on `agy`).
-An undelivered report appends `REPORT (undelivered):` to `State` and prints a relay line (never claim delivery); if blocked by a sandbox, retry outside the sandbox within normal permissions.
-A later matching delivery appends `REPORT (delivered):` without deleting the original failure receipt; `cw status` flags unresolved undelivered reports from State history.
+An undelivered report appends `REPORT (undelivered):` to `State` and prints a relay line (never claim delivery); if blocked by a sandbox, retry outside the sandbox within normal permissions. A later matching delivery appends `REPORT (delivered):` without deleting the original failure receipt; `cw status` flags unresolved undelivered reports from State history.
 
 ## Code
 

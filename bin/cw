@@ -29,9 +29,9 @@ ADAPTERS = {
     'codex': ['codex', '--no-daemon', '-m', '{model}', '-c', 'model_reasoning_effort={effort}'],
 }
 APPROVALS = {
-    'codex': {'trust': r'^Trust and continue\b', 'permission': r'^Yes, proceed\b', 'default': 0},
-    'claude': {'trust': r'^Yes, I trust (?:this folder|the files)', 'permission': r'^Yes(?:\s|$)', 'default': 0},
-    'agy': {'trust': r'\btrust\b', 'permission': r'\balways allow in this conversation\b', 'default': 0},
+    'codex': {'trust': r'^Trust and continue\b'},
+    'claude': {'trust': r'^Yes, I trust (?:this folder|the files)'},
+    'agy': {'trust': r'\btrust\b', 'permission': r'\balways allow in this conversation\b'},
 }
 TASK_RE = re.compile(r'[a-z0-9]([a-z0-9-]{0,18}[a-z0-9])?')
 BEGIN = '<!-- agent-co-work:begin v1 -->'
@@ -850,9 +850,13 @@ def launch_plan(root, path, values, seat, name, prompt, caller_info, handover=Fa
     return commands
 
 
+def strip_ansi(screen):
+    return re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', screen)
+
+
 def approval_menu(screen, agent):
     # Strip terminal styling and box borders, but retain selection markers.
-    screen = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', screen)
+    screen = strip_ansi(screen)
     lines = [line.strip().strip('│┃').strip() for line in screen.splitlines()]
     options = []
     for line in lines:
@@ -870,7 +874,7 @@ def approval_menu(screen, agent):
 def approval_keys(root, screen, agent, cwd=None, require_selected=False):
     if agent not in APPROVALS:
         return None
-    screen = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', screen)
+    screen = strip_ansi(screen)
     lines, options = approval_menu(screen, agent)
     if not options:
         return None
@@ -919,7 +923,7 @@ def approval_keys(root, screen, agent, cwd=None, require_selected=False):
     selected = [i for i, (marked, _) in enumerate(options) if marked]
     if len(selected) > 1 or (require_selected and len(selected) != 1):
         return None
-    current = selected[0] if selected else APPROVALS[agent]['default']
+    current = selected[0] if selected else 0
     offset = candidates[0] - current
     return ['down' if offset > 0 else 'up'] * abs(offset) + ['enter']
 
@@ -1461,7 +1465,7 @@ def retry_report(address, message, payload, deadline):
             except CWError as exc:
                 detail = str(exc)
                 continue  # Do not resend without inspecting the target first.
-            screen = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', screen)
+            screen = strip_ansi(screen)
             if ' '.join(payload.split()) in ' '.join(screen.split()):
                 return True, 'report visible on target screen'
         delivered, detail = send_report(address, message, deadline=min(deadline, time.monotonic() + 180))

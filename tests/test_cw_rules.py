@@ -44,17 +44,25 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(self.calls(), [])
 
     def test_fresh_ignore_plan_partial_crlf_and_idempotence(self):
-        ignore = self.root / '.gitignore'
-        original = b'# retained\r\noutput/\r\n.tmp/\r\ncustom'
-        ignore.write_bytes(original)
-        plan = self.cw('init').stdout
-        self.assertIn('.gitignore: add cowork/, .scratch/, .worktrees/', plan)
-        self.assertEqual(ignore.read_bytes(), original)
-        self.install()
-        expected = original + b'\r\ncowork/\r\n.scratch/\r\n.worktrees/\r\n'
-        self.assertEqual(ignore.read_bytes(), expected)
-        self.cw('init', '--apply')
-        self.assertEqual(ignore.read_bytes(), expected)
+        cases = ((b'# retained\r\noutput/\r\n.tmp/\r\ncustom', 'cowork/, .scratch/, .worktrees/',
+                  b'\r\ncowork/\r\n.scratch/\r\n.worktrees/\r\n'),
+                 (b'local-files\r\ncache', 'cowork/, output/, .scratch/, .tmp/, .worktrees/',
+                  b'\r\ncowork/\r\noutput/\r\n.scratch/\r\n.tmp/\r\n.worktrees/\r\n'))
+        for i, (original, additions, suffix) in enumerate(cases):
+            with self.subTest(original=original), mock.patch.object(self, 'root', self.work / f'fresh-{i}'):
+                self.root.mkdir()
+                ignore = self.root / '.gitignore'
+                ignore.write_bytes(original)
+                plan = self.cw('init').stdout
+                self.assertIn('.gitignore: add ' + additions, plan)
+                self.assertEqual(ignore.read_bytes(), original)
+                self.install()
+                expected = original + suffix
+                self.assertEqual(ignore.read_bytes(), expected)
+                before = self.snapshot()
+                self.cw('init', '--apply')
+                self.assertEqual(ignore.read_bytes(), expected)
+                self.assertEqual(before, self.snapshot())
 
     def test_existing_init_and_upgrade_preserve_missing_ignore_defaults(self):
         self.install()

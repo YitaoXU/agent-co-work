@@ -89,44 +89,22 @@ Herdr 负责显示空间（space）、标签页（tab）和窗格（pane），`h
 
 1. 打开 Herdr 应用，并在应用中为目标项目目录新建空间或标签页（命令面板 `app.palette` 会按名称及快捷键列出包括 `space.new` 和 `tab.new` 在内的所有命令，`app.help` 可开关快捷键对话框；尚未打开任何空间时，新建标签页会自动创建一个空间）。
 2. 在该终端中启动 Claude Code：`claude -n yyyymmdd-coordinator`（或你选定的协调员 CLI），然后粘贴“快速开始”中的[协调员提示词](#协调员提示词)。
-3. 启动其他席位时，`cowork/cw start` 会把调用方的 `herdr.space=<id>` 标签传给 `hc run` 且不设置 `herdr.tab`，因此 Herdr 会在同一个空间中为每个已启动的席位新建一个标签页。
+3. 启动其他席位时，`cowork/cw start` 会把调用方的 `herdr.space=<id>` 标签传给 `hc run` 且不设置 `herdr.tab`，因此 Herdr 会在同一个空间中为每个已启动的席位新建一个标签页。 长席位使用 `--no-parent`，短席位使用 `--parent <调用方 t-id>`。
 
 ## 选择席位
 
 `templates/seats.tsv` 中的默认三 agent 配置仅作示例。任何席位都可以使用任意受支持的适配器（`claude`、`codex`、`agy`）及该 CLI 接受的任意模型与推理强度。可选的第六列带引号 `args`（`-` 或留空表示无）用于提供额外适配器 CLI 参数，按 shell 风格引号规则拆分（内层引号可保留空格，不执行 shell 展开）并原样追加到适配器 argv 末尾。
 
-**纯 Claude Code**（仅需 `claude`）：
+每格依次列出 `agent model effort life`；可选的 `args` 见上文。
 
-| seat | agent | model | effort | life | [args] |
-|---|---|---|---|---|---|
-| `coordinator` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `coordinator-alt` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `advisor` | `claude` | `claude-opus-5-5` | `high` | `short` | `-` |
-| `coder-heavy` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `coder-light` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `auditor` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-
-**Claude Code + Codex**（需 `claude` 和 `codex`）：
-
-| seat | agent | model | effort | life | [args] |
-|---|---|---|---|---|---|
-| `coordinator` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `coordinator-alt` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `advisor` | `claude` | `claude-opus-5-5` | `high` | `short` | `-` |
-| `coder-heavy` | `codex` | `gpt-6-astra` | `high` | `long` | `-` |
-| `coder-light` | `codex` | `gpt-6.1-sol` | `max` | `long` | `-` |
-| `auditor` | `codex` | `gpt-6-astra` | `high` | `long` | `-` |
-
-**Claude Code + agy + Codex**（`templates/seats.tsv` 中的默认配置）：
-
-| seat | agent | model | effort | life | [args] |
-|---|---|---|---|---|---|
-| `coordinator` | `claude` | `claude-opus-5-5` | `high` | `long` | `-` |
-| `coordinator-alt` | `agy` | `gemini-4-neon-xhigh` | `xhigh` | `long` | `-` |
-| `advisor` | `agy` | `gemini-4-neon-xhigh` | `xhigh` | `short` | `-` |
-| `coder-heavy` | `codex` | `gpt-6-astra` | `high` | `long` | `-` |
-| `coder-light` | `codex` | `gpt-6.1-sol` | `max` | `long` | `-` |
-| `auditor` | `codex` | `gpt-6-astra` | `high` | `long` | `-` |
+| seat | 纯 Claude Code | Claude Code + Codex | Claude Code + agy + Codex（默认配置） |
+|---|---|---|---|
+| `coordinator` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` |
+| `coordinator-alt` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `agy gemini-4-neon-xhigh xhigh long` |
+| `advisor` | `claude claude-opus-5-5 high short` | `claude claude-opus-5-5 high short` | `agy gemini-4-neon-xhigh xhigh short` |
+| `coder-heavy` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
+| `coder-light` | `claude claude-opus-5-5 high long` | `codex gpt-6.1-sol max long` | `codex gpt-6.1-sol max long` |
+| `auditor` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
 
 - **修改席位默认值**：初始化阶段可传 `--seat <seat>=<agent>:<model>:<effort>:<life>`（`args` 在初始化后配置）；初始化完成后运行 `cowork/cw seat set [--args='...'] <seat> <agent> <model> <effort> [short|long]`（更新 `cowork/seats.tsv`、保留注释，并在调用方记录中追加一行 `State`）。`--args='...'` 替换额外适配器选项（例如 `--args='--sandbox workspace-write'` 或 `'--config "label=two words"'`），省略 `--args` 则保留现有 `args`，`--args=-` 用于清空；切换适配器时请清空或替换不兼容的选项。
 - **为单个任务指定 agent**：向 `cowork/cw new` 传入 `--agent <agent>:<model>:<effort>[:<life>]`，或运行 `cowork/cw set <taskfile> agent=<agent>:<model>:<effort>[:<life>]`（`agent=-` 恢复席位默认值）。省略 `life` 时沿用席位设置，且单任务覆盖会保留该席位的 `args`（因此当席位带有特定适配器的 `args` 时，切换适配器前需先清空或更新这些 `args`）；席位的角色和命名规则保持不变。
@@ -135,7 +113,7 @@ Herdr 负责显示空间（space）、标签页（tab）和窗格（pane），`h
 
 ## 默认项目布局
 
-项目可在 `AGENTS.md` 中声明文件存放覆盖规则，安装不会搬动现有文件。首次安装在计划中列出并追加缺失的忽略项；已有安装的普通 init 和 upgrade 均逐字节保留 `.gitignore`，缺少默认项时提示。忽略的证据是本地文件，备份由项目负责。
+项目可在 `AGENTS.md` 中声明文件存放覆盖规则，安装不会搬动现有文件。忽略的证据是本地文件，备份由项目负责。
 
 | 路径 | 内容 | 首次安装时 Git 跟踪 | 持久证据 |
 |---|---|---|---|
@@ -171,26 +149,15 @@ flowchart TD
   S --> P
 ```
 
-任务批准、停止条件、写入归属与结项以 [核心技能](skills/cowork/SKILL.md#task-loop) 为准。`cw start` 检查任务及父任务的批准关卡；审查期间记录保持 `running`，由协调员验收。
-
-| 审查层级 | 审查证据 |
-|---|---|
-| 记录、文档、常规计划 | 协调员核查链接、事实和引用；高风险主张可交审计员 |
-| 普通代码 | 执行席位相关测试、协调员差异审阅 |
-| 训练/采样/评分、发布、安全等关键路径 | 新会话审计员实际运行检查，发现写入任务输出目录 |
-| 计算/GPU 实验 | 启动前 Brief/配置审阅、执行席位早期验收、定量主张独立阅读；通过的运行不重跑 |
-
-并行编辑优先分离修改范围。文件重叠或需要隔离检出时，`cw new --worktree` 创建 `.worktrees/<task>` 和任务分支；通过 `COWORK_ROOT` 将记录保留在主检出中。协调员以明确路径整合已接受的变更，并清理退役分支和检出。详见技能中的 [审查与 Git 规则](skills/cowork/SKILL.md#escalation-and-review)。
+`cw start` 检查任务及父任务的批准关卡；`cw new --worktree` 创建 `.worktrees/<task>` 和任务分支，通过 `COWORK_ROOT` 将记录保留在主检出中；详见技能中的 [审查与 Git 规则](skills/cowork/SKILL.md#escalation-and-review)。
 
 ## 资源与锁
 
-- 仅在项目的 `## Resources` 节中列出独占资源（`<name>: <description>`），并将不同的独占阶段拆分列出（例如 `training-code` 与 `gpu`）。资源锁从不阻塞 `cw start`，因此在其他任务持有 GPU 锁期间，CPU 预处理仍可并行运行。
-- **排队与获取**：协调员用 `cowork/cw lock next <resource> <task|->` 设置或清空唯一队首；执行席位在进入独占阶段前先做实时主机/资源检查，随后立即运行 `cowork/cw lock take <resource>`。
-- **参考预计时间**：持锁方可用 `cowork/cw lock expect <resource> <time>` 通知后继任务与协调员（`estimate != release`，绝不代表可提前启动，也不写入 `State` 行）。
+- **参考预计时间**：`cowork/cw lock expect <resource> <time>` 通知后继任务与协调员，不写入 `State` 行。
 - **释放与过期恢复**：持锁方运行 `cowork/cw lock release <resource> [--evidence <path>] [--note <text>]`，先释放锁再发送通知，保留队首设置，并写入一条 `State` 行。`cowork/cw status` 会为已关闭、缺失或已退出的持锁方标出 `! stale holder`（绝不自动释放）；仅协调员席位可使用 `--force --holder <yyyymmdd/task>` 强制恢复。预期持有者在锁内校验和比较；缺失、格式错误或不匹配时退出码为 1，锁不改变。
 - **存储方式**：以无扩展名 TSV 文件存于 `cowork/locks/<resource>`，记录 `yyyymmdd/<task>` 标识，通过 `cowork/locks/.flock` 上的 `fcntl.flock` 串行化，并借助 `COWORK_ROOT` 在各 worktree 间共享。
 
-锁命令在变更前失败时返回 1，变更后通知或回执写入失败时返回 3（包括 `expect`）；2 表示操作被阻塞。遇到 3 或结果不明确时，重试前先用 `cw status` 检查 holder/since。`--holder` 能保护其他任务的获取，但不能区分同一任务后来再次获取；不得盲目重试。首次持有者先 take 再设置后继队首；多资源阶段的顺序见 [资源规则](skills/cowork/SKILL.md#resources)。
+锁命令在变更前失败时返回 1，变更后通知或回执写入失败时返回 3（包括 `expect`）。遇到 3 或结果不明确时，重试前先用 `cw status` 检查 holder/since。`--holder` 能保护其他任务的获取，但不能区分同一任务后来再次获取。详见 [资源规则](skills/cowork/SKILL.md#resources)。
 
 ## 记录、Wrap-up 与经验教训
 
@@ -200,16 +167,14 @@ flowchart TD
 - 报告发送最多尝试三次，每次约 180 秒，整条命令共用 10 分钟预算（含 `--to` 的两个收件方）。每次重试前读取目标屏幕；正文已显示则视为送达，不再重发。进度写入 stderr，仅最终结果产生回执。任务投递、按键、启动及其他通知保持原有行为。
 - 协调员报告失败时追加 `REPORT (undelivered):`；随后相同正文和目的地送达时追加 `REPORT (delivered):`，保留失败记录。普通首次成功不新增 State 行。`cw status` 标记未解决回执，包括已关闭或未分配终端的任务；不同正文/目的地互不消除，再次失败会重新标记。
 - `cw index` 生成不超过 60 行的概览：按项目/线路分组的活跃 task/seat，以及近 7 天关闭的记录。step 汇总为父任务行上的计数（同日父任务优先，否则最新）；无父任务的 step 留在每日记录中。溢出时失败，不覆盖概览。
-- `cw lessons [yyyymmdd]` 从 Wrap-up/旧 Debrief 刷新每日 From tasks，保留 Takeaways；协调员与用户确认 Takeaways。
+- `cw lessons [yyyymmdd]` 从 Wrap-up/旧 Debrief 刷新每日 From tasks，保留 Takeaways。
 - `cw lint` 打印安装版本、校验头部和项目状态，并检查非空节行数：Goal <=3、State <=10、Handover <=20、项目 Decisions <=20。文件上限为教训 README <=40、概览 <=60；项目历史归档不受 Decisions 检查。超过 40 字符的完全重复行仅作为诊断。
 
-任务模板包含 `args: -`，旧 `size:` 和 `debrief` / `## Debrief` 仍可读取。用 `cw set` 修改头部。执行席位的 Wrap-up 提供结果、证据、教训、下一步和已收到的用户决策；协调员给出简短摘要并负责验收/结项。
+任务模板包含 `args: -`，旧 `size:` 和 `debrief` / `## Debrief` 仍可读取。用 `cw set` 修改头部。
 
 ## 协调员交接
 
-- 在上下文使用约 60%、完成一次 Wrap-up 后或当日结束时发起交接，发起前先在离任协调员的 `## Handover` 节中记录恢复上下文。
-- 运行 `cowork/cw handover context` 启动全新的 `coordinator`，或运行 `cowork/cw handover tokens` 切换到 `coordinator-alt`（切回方式相同）。
-- 继任者在调用方的 Herdr 空间内以 `--no-parent` 启动，读取离任记录、`cowork/README.md`、`cowork/projects/` 及活跃任务记录，然后执行 `cowork/cw handover --accept`。
+- 运行 `cowork/cw handover context` 启动全新的 `coordinator`，`cowork/cw handover tokens` 切换到 `coordinator-alt`（或切回），或 `cowork/cw handover --accept` 接管；详见 [交接规则](skills/cowork/SKILL.md#size-limits-consolidation-and-handover)。
 - `--accept` 会将继任者的终端 ID 写入 `cowork/coordinator.addr`、向前任协调员发送接管确认并在自己的 `State` 中记录送达情况；离任方的 `cw handover` 会轮询 `coordinator.addr` 以确认交接完成。
 
 ## 无 Herdr 模式
@@ -218,8 +183,6 @@ flowchart TD
 - `cowork/cw start <taskfile>`（或随时加上 `--print`）会打印准确的 `hc` 启动命令，不实际启动也不修改记录；`cowork/cw check <taskfile>` 会打印 `hc get` 命令及最后 3 条 `State` 行。
 - `cowork/cw status` 列出活跃且已分配终端的任务，以及任何有未解决报告回执的任务，显示 `Herdr unavailable`，同时仍会标出其 `State` 中的 `BLOCKED:` 以及已关闭或缺失的过期锁持有者。
 - `cowork/cw report` 会向 `State` 追加 `REPORT (undelivered): ...`、打印供人工转发的 `Relay to coordinator:` 行并以退出码 1 退出；`cowork/cw handover` 必须依赖 `HC_TERMINAL_ID`。
-
-长席位以 `--no-parent` 启动，短席位显式使用 `--parent <调用方 t-id>`；两者均保留调用方的 `herdr.space` 标签。无父终端的席位不会通过 hc 向协调员发送阻塞或退出通知，因此协调员每次收到报告和每次定期检查时都运行 `cw status`。
 
 ## 故障排查
 
@@ -262,9 +225,9 @@ flowchart TD
 ## 已知限制
 
 - **固定适配器集合**：内置启动与审批适配器仅支持 `claude`、`codex` 和 `agy`；未知 agent 会报错。
-- **严格限定的自动审批**：`cw approve` 仅在根目录精确匹配的信任提示以及单条 `agy` `cowork/cw` 命令提示时按键；其余所有对话框都会中止（退出码 2）等待人工决策。
+- **严格限定的自动审批**：仅自动处理可识别的提示，详见 [故障排查](#故障排查)。
 - **无加密级强约束**：`approved: user, yyyy-mm-dd` 与席位角色只做格式/日期校验，不构成防止手动篡改的安全边界。
-- **有界启动重试与人工恢复**：`cw start` 仅在任务确认尚未送达且终端提前退出时最多重试一次（沿用原名与原 120 秒启动时限）；第二次退出、已送达或送达状态不明确、任何 `cw handover` 退出或时限到期都会中止等待排查。过期锁只会标记（`! stale holder`），永不自动释放。
+- **有界启动重试与人工恢复**：启动恢复详见 [故障排查](#故障排查)；过期锁只会标记（`! stale holder`），永不自动释放。
 - **命名与可见性上限**：名称限 1–20 字符（`[a-z0-9]([a-z0-9-]{0,18}[a-z0-9])?`），冲突后缀最多到 `-9`，调用方无 `herdr.space` 标签时会发出警告并以隐藏终端启动。
 - **单元测试范围**：`tests/` 使用隔离的模拟 `hc`/`git` 二进制、本地 Git clone 测试仓库、捕获的提示界面文本以及真实的并发锁竞争进程；实机多 agent 交接未纳入自动化测试套件。
 
