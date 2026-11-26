@@ -83,6 +83,8 @@ The release clone at `~/.agent-co-work` is shared by all target projects. Always
 
 **What `init` touches:** creates `cowork/cw`, `cowork/kit-version` (fresh install only), `cowork/seats.tsv`, `cowork/coordinator.addr`, `cowork/<today>/coordinator.md`, `cowork/README.md`, and `cowork/lessons/README.md`; copies the four skills (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`) into `.claude/skills/` and `.agents/skills/`; on fresh installation appends missing `cowork/`, `output/`, `.scratch/`, `.tmp/`, and `.worktrees/` entries to `.gitignore` (listed in the plan), appends a marked block to `AGENTS.md`, and adds `@AGENTS.md` to `CLAUDE.md` if absent. After installation, plain init and `--upgrade` preserve `.gitignore` byte-for-byte and print a note if default entries are missing. Plain init preserves other existing content, and rerunning an up-to-date installation prints `nothing to do`. `python3 ~/.agent-co-work/bin/cw init --upgrade` (then `--upgrade --apply`) refreshes only `cowork/cw`, `cowork/kit-version`, the copied skills, and the marked `AGENTS.md` block.
 
+**Projects with a server:** if the project runs jobs on a server, the optional step in `cowork-init` asks for every placeholder in [templates/server.md](templates/server.md), prepares the filled rules for user confirmation, and saves them to `docs/server.md` (or the project's declared documentation path). It never overwrites an existing server guide and adds a pointer in `AGENTS.md` outside the marked block. Hardware stays unverified until probed outside the sandbox.
+
 ### Using the Herdr app
 
 Herdr shows spaces, tabs, and panes while `herdr-core` (`hc`) runs their terminals and keeps them alive when the window closes (closing a pane, tab, or space ends the terminals in it).
