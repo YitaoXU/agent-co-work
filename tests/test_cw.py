@@ -226,7 +226,7 @@ class CWTests(unittest.TestCase):
         self.cw('init', '--apply', live=live)
         self.clear_calls()
 
-    def new(self, task='work', seat='coder-heavy', size='large', approve=True):
+    def new(self, task='work', seat='worker-heavy', size='large', approve=True):
         self.cw('new', task, '--seat', seat, '--size', size)
         p = self.root / f'cowork/{DAY}/{task}.md'
         if approve and size == 'large':
@@ -246,7 +246,7 @@ class CWTests(unittest.TestCase):
 
     def test_help_lists_commands(self):
         output = self.cw('--help').stdout
-        for command in ('init', 'seats', 'seat', 'new', 'set', 'start', 'approve', 'check', 'status', 'report', 'handover', 'index', 'lessons', 'lint'):
+        for command in ('init', 'upgrade', 'seats', 'seat', 'new', 'set', 'start', 'approve', 'check', 'status', 'report', 'handover', 'index', 'lessons', 'lint'):
             self.assertIn(command, output)
 
     def test_readme_links_to_core_task_loop_rules(self):
@@ -361,6 +361,46 @@ class CWTests(unittest.TestCase):
         self.cw('start', f'cowork/{DAY}/portable.md', script=fresh / 'cowork/cw', cwd=fresh)
         self.assertEqual(self.calls(), [])
 
+
+    def test_discussion_fallback_legacy_seats_and_vendored_prompt(self):
+        self.install()
+        table = self.root / 'cowork/seats.tsv'
+        fresh = table.read_text()
+        self.assertIn('worker-heavy\tcodex', fresh)
+        self.assertIn('worker-light\tcodex', fresh)
+        self.assertIn('discussion\tclaude', fresh)
+        legacy = '\n'.join(line for line in fresh.splitlines() if not line.startswith('discussion\t')) + '\n'
+        legacy = legacy.replace('worker-heavy', 'coder-heavy').replace('worker-light', 'coder-light')
+        table.write_text(legacy)
+        installed = self.root / 'cowork/cw'
+        self.cw('init', '--upgrade', '--apply')
+        self.assertEqual(legacy, table.read_text())
+        self.cw('new', 'legacy', '--seat', 'coder-heavy', '--kind', 'step', script=installed)
+        legacy_launch = self.cw('start', f'cowork/{DAY}/legacy.md', '--print', script=installed).stdout
+        self.assertIn('You are seat coder-heavy on task legacy', legacy_launch)
+        self.cw('new', 'discussion', '--seat', 'discussion', '--kind', 'step', script=installed)
+        task = self.root / f'cowork/{DAY}/discussion.md'
+        before = self.snapshot()
+        launch = self.cw('start', task, '--print', script=installed).stdout
+        for text in ('Greet the user and wait', 'Only when the user ends', 'open questions', str(task)):
+            self.assertIn(text, launch)
+        self.assertEqual(before, self.snapshot())
+        self.assertIn('read', launch.lower())
+        self.cw('seat', 'set', 'discussion', 'codex', 'custom', 'high', script=installed)
+        self.assertIn('discussion\tcodex\tcustom\thigh\tlong', table.read_text())
+        self.cw('new', 'missing', '--seat', 'unknown-seat', '--kind', 'step', script=installed, code=1)
+        self.cw('seat', 'set', 'unknown-seat', 'codex', 'custom', 'high', script=installed, code=1)
+        self.cw('lint', script=installed)
+        self.assertEqual(self.calls(), [])
+
+    def test_lint_rejects_invalid_seat_schema(self):
+        self.install()
+        table = self.root / 'cowork/seats.tsv'
+        table.write_text(table.read_text() + 'bad unknown model high long\n')
+        result = self.cw('lint', code=1)
+        self.assertIn('Unknown agent', result.stdout)
+        self.assertNotIn('Caps OK.', result.stdout)
+
     def test_init_herdr_address(self):
         self.install(live=True)
         self.assertEqual((self.root / 'cowork/coordinator.addr').read_text(), 't1 caller\n')
@@ -385,15 +425,15 @@ class CWTests(unittest.TestCase):
         self.install()
         task = self.new()
         p = self.root / 'cowork/seats.tsv'
-        p.write_text(p.read_text().replace('coder-light\tcodex\tgpt-6.1-sol\tmax\tlong', 'coder-light codex gpt-6.1-sol max long # personal comment'))
+        p.write_text(p.read_text().replace('worker-light\tcodex\tgpt-6.1-sol\tmax\tlong', 'worker-light codex gpt-6.1-sol max long # personal comment'))
         old = p.read_text().splitlines()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'other-model', 'high', env={'COWORK_TASK': str(task)})
+        self.cw('seat', 'set', 'worker-light', 'claude', 'other-model', 'high', env={'COWORK_TASK': str(task)})
         new = p.read_text().splitlines()
         self.assertEqual(sum(a != b for a, b in zip(old, new)), 1)
         self.assertIn('# personal comment', p.read_text())
-        self.assertIn('seat coder-light: claude other-model high long', task.read_text())
+        self.assertIn('seat worker-light: claude other-model high long', task.read_text())
         before = self.snapshot()
-        result = self.cw('seat', 'set', 'coder-light', 'unknown', 'x', 'y', code=1)
+        result = self.cw('seat', 'set', 'worker-light', 'unknown', 'x', 'y', code=1)
         self.assertIn('known adapters: claude, agy, codex', result.stderr)
         self.assertEqual(before, self.snapshot())
 
@@ -402,23 +442,23 @@ class CWTests(unittest.TestCase):
         task = self.new()
         table = self.root / 'cowork/seats.tsv'
         original = table.read_text()
-        table.write_text(original.replace('coder-light\tcodex\tgpt-6.1-sol\tmax\tlong',
-                                           'coder-light codex gpt-6.1-sol max long "--tag #literal" # personal comment'))
+        table.write_text(original.replace('worker-light\tcodex\tgpt-6.1-sol\tmax\tlong',
+                                           'worker-light codex gpt-6.1-sol max long "--tag #literal" # personal comment'))
         before = table.read_text().splitlines()
         coordinator = self.root / f'cowork/{DAY}/coordinator.md'
         coordinator_before = coordinator.read_bytes()
         extra = '--sandbox workspace-write --tag "#updated" --config "label=two words"'
         own = {'COWORK_TASK': str(task)}
-        self.cw('seat', 'set', 'coder-light', 'codex', 'custom', 'high', f'--args={extra}',
+        self.cw('seat', 'set', 'worker-light', 'codex', 'custom', 'high', f'--args={extra}',
                 env=own, script=self.root / 'cowork/cw')
         self.assertEqual(sum(a != b for a, b in zip(before, table.read_text().splitlines())), 1)
         self.assertIn('# personal comment', table.read_text())
-        self.assertEqual(self.module().get_seat(self.root, 'coder-light')['args'], extra)
-        self.cw('seat', 'set', 'coder-light', 'agy', 'other', 'xhigh', env=own)
-        self.assertEqual(self.module().get_seat(self.root, 'coder-light')['args'], extra)
+        self.assertEqual(self.module().get_seat(self.root, 'worker-light')['args'], extra)
+        self.cw('seat', 'set', 'worker-light', 'agy', 'other', 'xhigh', env=own)
+        self.assertEqual(self.module().get_seat(self.root, 'worker-light')['args'], extra)
         self.assertIn('args=', task.read_text())
-        self.cw('seat', 'set', 'coder-light', 'agy', 'other', 'xhigh', '--args=-', env=own)
-        self.assertEqual(self.module().get_seat(self.root, 'coder-light')['args'], '-')
+        self.cw('seat', 'set', 'worker-light', 'agy', 'other', 'xhigh', '--args=-', env=own)
+        self.assertEqual(self.module().get_seat(self.root, 'worker-light')['args'], '-')
         self.assertIn('# personal comment', table.read_text())
         self.assertEqual(coordinator.read_bytes(), coordinator_before)
         self.assertEqual(self.calls(), [])
@@ -429,8 +469,8 @@ class CWTests(unittest.TestCase):
         expected = ['--config', 'label=two words', '--tag', '#literal', '--literal', '{name}', '--note', '$(touch never)']
         for agent in ('codex', 'agy', 'claude'):
             with self.subTest(agent=agent):
-                self.cw('seat', 'set', 'coder-light', agent, 'model', 'high', f'--args={extra}')
-                p = self.new(agent, seat='coder-light', size='small')
+                self.cw('seat', 'set', 'worker-light', agent, 'model', 'high', f'--args={extra}')
+                p = self.new(agent, seat='worker-light', size='small')
                 before = self.snapshot()
                 preview = self.cw('start', p, '--print').stdout
                 self.assertEqual(shlex.split(preview.splitlines()[0])[-len(expected):], expected)
@@ -443,15 +483,15 @@ class CWTests(unittest.TestCase):
 
     def test_task_agent_override_retains_seat_args(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'codex', 'model', 'max', '--args=--tag "two words"')
+        self.cw('seat', 'set', 'worker-light', 'codex', 'model', 'max', '--args=--tag "two words"')
         table = (self.root / 'cowork/seats.tsv').read_bytes()
-        p = self.new(seat='coder-light', size='small')
+        p = self.new(seat='worker-light', size='small')
         self.cw('set', p, 'agent=agy:override:xhigh:short')
         self.cw('start', p, live=True)
         launch = next(c for c in self.calls() if c[0] == 'run')
         self.assertEqual(launch[-7:], ['agy', '--model', 'override', '--effort', 'xhigh', '--tag', 'two words'])
         self.assertNotIn('--outlive-parent', launch)
-        self.assertIn('COWORK_SEAT=coder-light', launch)
+        self.assertIn('COWORK_SEAT=worker-light', launch)
         self.cw('set', p, 'agent=-')
         self.assertEqual(shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])[-2:], ['--tag', 'two words'])
         self.assertEqual(table, (self.root / 'cowork/seats.tsv').read_bytes())
@@ -461,7 +501,7 @@ class CWTests(unittest.TestCase):
         for extra in ('--config "unterminated', '--sandbox\nworkspace-write', '--sandbox\rworkspace-write'):
             with self.subTest(extra=extra):
                 before = self.snapshot()
-                self.cw('seat', 'set', 'coder-light', 'codex', 'model', 'max', f'--args={extra}', code=1)
+                self.cw('seat', 'set', 'worker-light', 'codex', 'model', 'max', f'--args={extra}', code=1)
                 self.assertEqual(before, self.snapshot())
                 self.assertEqual(self.calls(), [])
 
@@ -470,7 +510,7 @@ class CWTests(unittest.TestCase):
         p = self.new()
         table = self.root / 'cowork/seats.tsv'
         original = table.read_text()
-        base = 'coder-light\tcodex\tgpt-6.1-sol\tmax\tlong'
+        base = 'worker-light\tcodex\tgpt-6.1-sol\tmax\tlong'
         for suffix in (' --sandbox workspace-write', ' "unterminated',
                        ' ' + shlex.quote('--config "unterminated'), ' "one" "two"'):
             with self.subTest(suffix=suffix):
@@ -485,7 +525,7 @@ class CWTests(unittest.TestCase):
         module = self.module()
         for suffix in ('', ' -', ' ""'):
             with self.subTest(suffix=suffix):
-                row = module.seat_rows('coder-light codex model high long' + suffix)['coder-light']
+                row = module.seat_rows('worker-light codex model high long' + suffix)['worker-light']
                 self.assertEqual(module.extra_argv(row['args']), [])
 
     def test_new_and_set_preserve_body_and_validate_names(self):
@@ -503,7 +543,7 @@ class CWTests(unittest.TestCase):
     def test_task_agent_override_preserves_seat_and_can_be_reset(self):
         self.install()
         table = (self.root / 'cowork/seats.tsv').read_bytes()
-        self.cw('new', 'custom', '--seat', 'coder-heavy', '--size', 'small',
+        self.cw('new', 'custom', '--seat', 'worker-heavy', '--size', 'small',
                 '--agent', 'agy:user-model:xhigh:short')
         p = self.root / f'cowork/{DAY}/custom.md'
         self.assertIn('agent: agy:user-model:xhigh:short', p.read_text())
@@ -511,9 +551,9 @@ class CWTests(unittest.TestCase):
         launch = next(c for c in self.calls() if c[0] == 'run')
         self.assertEqual(launch[-5:], ['agy', '--model', 'user-model', '--effort', 'xhigh'])
         self.assertNotIn('--outlive-parent', launch)
-        self.assertIn('COWORK_SEAT=coder-heavy', launch)
+        self.assertIn('COWORK_SEAT=worker-heavy', launch)
         self.assertIn(f'{DAY}-custom', launch)
-        self.assertIn('You are seat coder-heavy on task custom', self.calls()[-1][2])
+        self.assertIn('You are seat worker-heavy on task custom', self.calls()[-1][2])
         body = p.read_text().split('## Goal', 1)[1]
         self.cw('set', p, 'agent=claude:another-model:high')
         self.assertEqual(body, p.read_text().split('## Goal', 1)[1])
@@ -678,9 +718,9 @@ class CWTests(unittest.TestCase):
         for agent in ('claude', 'agy', 'codex'):
             for life in ('short', 'long'):
                 with self.subTest(agent=agent, life=life):
-                    self.cw('seat', 'set', 'coder-light', agent, 'test-model', 'high', life)
+                    self.cw('seat', 'set', 'worker-light', agent, 'test-model', 'high', life)
                     task = agent + '-' + life
-                    p = self.new(task, seat='coder-light')
+                    p = self.new(task, seat='worker-light')
                     self.clear_calls()
                     self.cw('start', p, live=True)
                     calls = self.calls()
@@ -695,7 +735,7 @@ class CWTests(unittest.TestCase):
                         self.assertEqual(launch[launch.index('--parent') + 1], 't1')
                     self.assertIn('herdr.space=space-a', launch)
                     payload = launch[launch.index('--') + 1:]
-                    self.assertEqual(payload[:4], ['env', f'COWORK_ROOT={self.root}', f'COWORK_TASK={p}', 'COWORK_SEAT=coder-light'])
+                    self.assertEqual(payload[:4], ['env', f'COWORK_ROOT={self.root}', f'COWORK_TASK={p}', 'COWORK_SEAT=worker-light'])
                     if agent in ('codex', 'agy'):
                         expected = (['codex', '--no-daemon', '-m', 'test-model', '-c', 'model_reasoning_effort=high']
                                     if agent == 'codex' else ['agy', '--model', 'test-model', '--effort', 'high'])
@@ -810,7 +850,7 @@ class CWTests(unittest.TestCase):
         cases = [
             ('codex-trust.txt', folder, {'status': None, 'foreground': {'argv': ['/bin/codex']}}, ['enter']),
             ('codex-trust.txt', folder, {'status': {'app': 'codex', 'state': 'blocked'}}, ['enter']),
-            ('codex-trust.txt', folder, {'status': None, 'argv': ['env', 'COWORK_SEAT=coder-light', '/bin/codex']}, ['enter']),
+            ('codex-trust.txt', folder, {'status': None, 'argv': ['env', 'COWORK_SEAT=worker-light', '/bin/codex']}, ['enter']),
             ('claude-trust.txt', self.root, {'status': {'app': 'claude', 'state': 'blocked'},
                                           'foreground': {'argv': ['node'], 'cwd': str(self.root)}}, ['down', 'enter']),
             ('claude-trust-live.txt', claude_folder,
@@ -929,8 +969,8 @@ class CWTests(unittest.TestCase):
 
     def test_agy_transient_blocked_startup_and_permission(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'agy', 'model', 'high')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'agy', 'model', 'high')
+        p = self.new(seat='worker-light')
         self.configure(waits=[{'status': 'blocked'}, {'status': 'blocked'}, {'status': 'idle'}],
                        screens=['Signing in...', (SCREENS / 'agy-cw-permission.txt').read_text()])
         self.cw('start', p, live=True)
@@ -980,8 +1020,8 @@ class CWTests(unittest.TestCase):
 
     def test_claude_start_waits_and_approves_root_trust(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'model', 'high')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'claude', 'model', 'high')
+        p = self.new(seat='worker-light')
         self.configure(waits=[{'status': 'blocked'}, {'status': 'idle'}],
                        get={'t42': {'status': {'state': 'blocked'}}},
                        screens=self.claude_screens(f'Do you trust this folder?\n{self.root}\n❯ 1. No, exit\n  2. Yes, I trust this folder'))
@@ -992,8 +1032,8 @@ class CWTests(unittest.TestCase):
 
     def test_claude_known_undelivered_task_recovers_after_read(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'model', 'high')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'claude', 'model', 'high')
+        p = self.new(seat='worker-light')
         self.configure(run={'first_message': {'sent': False, 'reason': 'blocked'}},
                        waits=[{'status': 'blocked'}, {'status': 'idle'}],
                        get={'t42': {'status': {'state': 'blocked'}}},
@@ -1247,8 +1287,8 @@ class CWTests(unittest.TestCase):
 
     def test_opt_in_trace_records_launch_and_approval_outside_project(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'model', 'high')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'claude', 'model', 'high')
+        p = self.new(seat='worker-light')
         screen = (SCREENS / 'claude-trust.txt').read_text()
         receipt = {'sent': True, 'via': 'argv'}
         self.configure(run={'first_message': receipt},
@@ -1532,8 +1572,8 @@ sys.exit(namespace['main']())
 
     def test_fast_claude_start_records_delivery_before_wait_and_preserves_progress(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'model', 'high')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'claude', 'model', 'high')
+        p = self.new(seat='worker-light')
         module = self.module()
         def fake_hc(*args, **kwargs):
             if args[0] == 'ls':
@@ -1556,8 +1596,8 @@ sys.exit(namespace['main']())
 
     def test_fast_claude_blocked_start_keeps_terminal_and_marks_blocked(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'model', 'high')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'claude', 'model', 'high')
+        p = self.new(seat='worker-light')
         self.configure(waits=[{'status': 'blocked'}], screen='Unknown permission request',
                        get={'t42': {'status': {'state': 'blocked'}}})
         result = self.cw('start', p, live=True, code=2)
@@ -1569,8 +1609,8 @@ sys.exit(namespace['main']())
 
     def test_fast_claude_finished_run_is_never_marked_running(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'model', 'high')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'claude', 'model', 'high')
+        p = self.new(seat='worker-light')
         for receipt in (None, {'sent': True}):
             with self.subTest(receipt=receipt):
                 self.clear_calls()
@@ -1737,8 +1777,8 @@ sys.exit(namespace['main']())
 
     def test_claude_exit_never_relaunches_delivered_or_unknown_task(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'model', 'high')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'claude', 'model', 'high')
+        p = self.new(seat='worker-light')
         for receipt in (None, {'sent': True}):
             with self.subTest(receipt=receipt):
                 self.clear_calls()
@@ -1750,8 +1790,8 @@ sys.exit(namespace['main']())
 
     def test_claude_exit_after_recovery_delivery_never_relaunches(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'model', 'high')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'claude', 'model', 'high')
+        p = self.new(seat='worker-light')
         self.configure(run={'first_message': {'sent': False}},
                        waits=[{'status': 'idle'}, {'reason': 'exit', 'status': None}])
         self.cw('start', p, live=True, code=1)
@@ -1759,8 +1799,8 @@ sys.exit(namespace['main']())
 
     def test_claude_known_undelivered_exit_retries_with_correct_prompt_and_args(self):
         self.install()
-        self.cw('seat', 'set', 'coder-light', 'claude', 'model', 'high', '--args=--tag "two words"')
-        p = self.new(seat='coder-light')
+        self.cw('seat', 'set', 'worker-light', 'claude', 'model', 'high', '--args=--tag "two words"')
+        p = self.new(seat='worker-light')
         self.configure(run={'first_message': {'sent': False}}, runs=[{}, {'address': 't43'}],
                        waits=[{'reason': 'exit', 'status': None}, {'status': 'idle'}])
         self.cw('start', p, live=True)
@@ -1772,7 +1812,7 @@ sys.exit(namespace['main']())
         self.assertEqual(launches[1][-2:], ['--tag', 'two words'])
         self.assertEqual(len(sends), 1)
         self.assertEqual(sends[0][1:3], ['t43', launches[1][-3]])
-        self.assertIn('You are seat coder-light on task work', sends[0][2])
+        self.assertIn('You are seat worker-light on task work', sends[0][2])
 
     def test_failed_early_exit_cleanup_stops_before_second_launch(self):
         self.install()
@@ -2122,7 +2162,7 @@ sys.exit(99)
     def test_new_worktree_records_branch_and_launch_directory(self):
         self.install()
         self.fake_git()
-        self.cw('new', 'isolated', '--seat', 'coder-heavy', '--size', 'small', '--worktree')
+        self.cw('new', 'isolated', '--seat', 'worker-heavy', '--size', 'small', '--worktree')
         p = self.root / f'cowork/{DAY}/isolated.md'
         worktree = self.root / '.worktrees/isolated'
         self.assertIn('worktree: .worktrees/isolated', p.read_text())
@@ -2137,17 +2177,17 @@ sys.exit(99)
         # when a tracked cowork directory also exists in the coder's worktree.
         (worktree / 'cowork').mkdir()
         (worktree / 'cowork/seats.tsv').write_text('invalid table')
-        self.assertIn('coder-heavy', self.cw('seats', cwd=worktree, env={'COWORK_ROOT': str(self.root)}).stdout)
+        self.assertIn('worker-heavy', self.cw('seats', cwd=worktree, env={'COWORK_ROOT': str(self.root)}).stdout)
 
     def test_new_worktree_refuses_non_repo_or_git_failure_without_record(self):
         self.install()
         for repository, fail_add in ((False, False), (True, True)):
             self.fake_git(repository=repository, fail_add=fail_add)
             before = self.snapshot()
-            self.cw('new', 'isolated', '--seat', 'coder-heavy', '--size', 'small', '--worktree', code=1)
+            self.cw('new', 'isolated', '--seat', 'worker-heavy', '--size', 'small', '--worktree', code=1)
             self.assertEqual(before, self.snapshot())
 
-    def test_index_recent_window_and_overflow_preserve_existing_file(self):
+    def test_index_recent_window_and_overflow_writes_with_warning(self):
         self.install()
         p = self.new()
         old_day = (dt.date.today() - dt.timedelta(days=7)).strftime('%Y%m%d')
@@ -2161,8 +2201,9 @@ sys.exit(99)
         for n in range(60):
             (p.parent / f'item-{n}.md').write_text(p.read_text().replace('task: work', f'task: item-{n}'))
         before = overview.read_bytes()
-        self.cw('index', code=1)
-        self.assertEqual(before, overview.read_bytes())
+        self.assertIn('over guideline:', self.cw('index').stdout)
+        self.assertNotEqual(before, overview.read_bytes())
+        self.assertGreater(len(overview.read_text().splitlines()), 60)
 
     def test_lint_caps_and_duplicate_diagnostics(self):
         self.install()
@@ -2171,8 +2212,10 @@ sys.exit(99)
         p.write_text(text + '\n## Handover\n' + 'handover\n' * 21)
         for file, n in (('cowork/README.md', 61), ('cowork/lessons/README.md', 41)):
             (self.root / file).write_text(('An exact duplicate line longer than forty characters.\n') * n)
-        output = self.cw('lint', code=1).stdout
-        for finding in ('Goal has 4', 'State has 11', 'Handover has 21', 'cap 60', 'cap 40', 'Duplicate:'):
+        output = self.cw('lint').stdout
+        self.assertNotIn('Caps OK.', output)
+        self.assertIn('Validation OK; 6 over guideline.', output)
+        for finding in ('Goal has 4', 'State has 11', 'Handover has 21', 'guideline 60', 'guideline 40', 'Duplicate:'):
             self.assertIn(finding, output)
 
     def test_check_status_and_closed_tasks(self):
@@ -2234,8 +2277,8 @@ sys.exit(99)
         self.install()
         nested = self.root / 'nested/deep'
         nested.mkdir(parents=True)
-        self.assertIn('coder-heavy', self.cw('seats', cwd=nested).stdout)
-        self.assertIn('coder-heavy', self.cw('--root', self.root, 'seats', cwd=self.work).stdout)
+        self.assertIn('worker-heavy', self.cw('seats', cwd=nested).stdout)
+        self.assertIn('worker-heavy', self.cw('--root', self.root, 'seats', cwd=self.work).stdout)
         outside = self.work / 'outside.md'
         outside.write_text('untouched\n')
         self.cw('set', outside, 'status=closed', code=1)

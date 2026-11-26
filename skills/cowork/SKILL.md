@@ -13,7 +13,8 @@ Read `hc --skill` and `herdr-app --skill` before using Herdr; use `hc` for agent
 `cowork/seats.tsv` assigns each seat's agent, model, effort, lifetime (`short`/`long`), and optional `args`; a task's `agent:` or `args:` overrides or extends it (use `-a never` only per task for unattended runs/tests, never seat-wide).
 - `coordinator` (and `coordinator-alt` when tokens run low): discuss with the user, draft Direction/Plan/Briefs/Wrap-ups, coordinate, decide, and give final acceptance.
 - `advisor`: review, propose alternatives, and cite evidence; never owns the plan.
-- `coder-heavy` / `coder-light` / `auditor`: heavy handles cross-module, unclear, or critical-path work; light handles specified single-module, mechanical, or batch work; `auditor` runs fresh-session checks for high-risk changes.
+- `worker-heavy` / `worker-light` / `auditor`: heavy handles cross-module, unclear, or critical-path work; light handles specified single-module, mechanical, or batch work; `auditor` runs fresh-session checks for high-risk changes.
+- `discussion`: when the user asks, the coordinator creates a standalone step (`--kind step`, no parent) with Goal and context files, checks its CLI (use `--agent` if named), starts it and gives the user the tab name. The seat greets and waits, discusses directly with the user, and reports conclusions/open questions only when the user ends; the coordinator records decisions from the summary and closes the record.
 Long seats launch parentless in the caller's `herdr.space` (sending no hc blocked/exit notes); run `cw status` on every report and scheduled check.
 
 ## Task loop
@@ -33,7 +34,7 @@ Use `kind: task|step|seat`, `project: <name>|-`, `line: main|side|-` and `draft 
 Multiple approved tasks may run in parallel, on either line; one task's Wrap-up does not block another approved task.
 `cw start` requires a task's user approval and status approved/running/blocked; running or blocked tasks may relaunch. A worker step with a parent needs that parent to be an approved task with one of those statuses; advisor steps may run before approval to prepare the Plan and Brief. Standalone steps and seats are not task-gated.
 Write a Goal and an unambiguous numbered Brief (action, done-condition meaning used/verified, defaults, named phase transitions, calibrated stop gates, outputs); cite project docs or plan links rather than restating them.
-Carry out the Brief in order, settling routine step defaults and keeping State as a rolling summary (<=10 lines); before rolling up State, archive detailed history and CLI receipts verbatim to `output/<yyyymmdd>/<task>/log.md` and link it.
+Carry out the Brief in order, settling routine step defaults and keeping State as a concise rolling summary (guideline <=10 lines); before rolling up State, archive detailed history and CLI receipts verbatim to `output/<yyyymmdd>/<task>/log.md` and link it.
 Finish each task with a Wrap-up (result, where, 1-3 `- lesson:` lines, proposed next, user decision); never infer the user's decision, and only the coordinator sets `status: wrap-up` or `closed` after acceptance.
 
 ## Resources
@@ -52,7 +53,7 @@ Project repos commit code, data, and living `docs/` by default; `cowork/`, `outp
 Daily records at `cowork/yyyymmdd/<task>.md` never move. Write structured task outputs, audit findings, and logs directly to `output/<yyyymmdd>/<task>/`; use `.scratch/` for host-local operational receipts, `.tmp/` for disposable scratch (never cite `.tmp/` as durable evidence; delete only after exporting needed evidence), and `docs/archive/` for merged superseded prose.
 Executed outputs, logs, and receipts are never rewritten, renamed, or deleted; append `CORRECTION <date>: <what>; <evidence>; supersedes <line>` to a wrong record, and redo a wrong output as a newly named run stating what it supersedes.
 Edit living conclusions and docs directly with a dated Wrap-up or Decisions note; never rerun passed acceptance (append corrections), never treat training/selection metrics as independent acceptance, and label untested layers explicitly.
-An agent writes only its own task record and Brief-assigned outputs; shared living indexes default to coordinator integration from worker deltas unless a Brief names one writer.
+An agent writes only its own task record and Brief-assigned outputs (discussion seats may also make edits explicitly requested by the user); shared living indexes default to coordinator integration from worker deltas unless a Brief names one writer.
 Edit task headers only through `cw set`, and `cowork/coordinator.addr` only through `cw`.
 At Wrap-up, the coordinator runs `cw index` and `cw lessons`, and confirms the day's Takeaways with the user.
 Task and resource names match `[a-z0-9-]{1,20}`; terminal names are `yyyymmdd-<task>` (collision suffixes `-2`..`-9`, never truncated).
@@ -84,14 +85,14 @@ Audit rigor matches change risk (coordinator gives final acceptance without reru
 - Ordinary code: worker runs relevant tests; coordinator reviews the diff and test output.
 - Critical paths (training/sampling/scoring, releases, safety/approval/lock code): fresh-session `auditor` (never the author) runs code and writes findings to `output/<yyyymmdd>/<task>/`; coordinator accepts from those findings.
 - Compute/GPU arms: pre-launch Brief/config review, worker early acceptance gate (e.g. first collection/checkpoint), no rerun of passed runs, and independent reading only for quantitative claims.
-Coders and auditors never stage or commit; the coordinator commits after acceptance (user, 2026-11-25).
+Workers and auditors never stage or commit; the coordinator commits after acceptance (user, 2026-11-25).
 Workers never run destructive Git commands: `git reset --hard`, `git checkout -- .`, `git restore .`, `git clean`, or `git push --force`.
 Prefer scope separation over worktrees: protect critical runtime scopes with a resource lock (one integrator at a time) and commit unlocked scopes with explicit paths (`git add <paths>`, never `git add -A`). Use `cw new --worktree` only when concurrent edits overlap files or need checkout isolation, and remove retired branches and worktrees promptly upon merge or task close.
 
 ## Size limits, consolidation, and handover
 
-Run `cowork/cw lint`: caps are `Goal <=3`, `State <=10`, `Handover <=20`, project `Decisions <=20`, `lessons/README.md <=40`, `cowork/README.md <=60`, this skill `<=150`; review reported duplicates (>40 chars).
-Summarize and archive every accumulating document promptly (never leave one to grow unbounded); run `cowork-consolidate` at task Wrap-up when caps near, weekly, or at project milestones:
+Run `cowork/cw lint`: soft length guidelines are `Goal <=3`, `State <=10`, `Handover <=20`, project `Decisions <=20`, `lessons/README.md <=40`, `cowork/README.md <=60`, this skill `<=150`; keep concise and review duplicates (>40 chars). Lengths and duplicates warn without failing; consolidate when over. Project/header/seat validation, name limits and path/symlink guards remain hard errors.
+Summarize and archive every accumulating document promptly (never leave one to grow unbounded); run `cowork-consolidate` at task Wrap-up when guidelines are near or exceeded, weekly, or at project milestones:
 - `State` -> roll up into `output/<yyyymmdd>/<task>/log.md` (verbatim CLI receipts first); project `Decisions` -> archive older lines to `cowork/projects/archive/<name>-history.md`; `lessons/README.md` -> distill weekly from daily `cowork/lessons/yyyymmdd.md` (roll older batches to `cowork/lessons/archive/yyyy-mm.md`).
 - `docs/archive/` -> merge superseded prose drafts into dated rollups (never rewrite executed findings/receipts); `output/` -> distill conclusions into `docs/` and prune unreferenced intermediates only under project policy; agent memory -> promote durable rules to `docs/`/`AGENTS.md` and prune stale entries (`<=80` lines).
 Initiate coordinator handover around 60% context use, after a Wrap-up, or at end of day: record recovery context in the outgoing `Handover` section and run `cw handover context` (same seat) or `cw handover tokens` (to/from `coordinator-alt`).

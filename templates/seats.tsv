@@ -3,6 +3,7 @@
 coordinator	claude	claude-opus-5-5	high	long
 coordinator-alt	agy	gemini-4-neon-xhigh	xhigh	long
 advisor	agy	gemini-4-neon-xhigh	xhigh	short
-coder-heavy	codex	gpt-6-astra	high	long
-coder-light	codex	gpt-6.1-sol	max	long
+worker-heavy	codex	gpt-6-astra	high	long
+worker-light	codex	gpt-6.1-sol	max	long
 auditor	codex	gpt-6-astra	high	long
+discussion	claude	claude-opus-5-5	high	long

@@ -213,6 +213,100 @@ class KitVersionTests(unittest.TestCase):
             self.assertEqual(before, self.snapshot())
             self.assertEqual(outside.read_text(), 'Keep outside content.\n')
 
+    def test_upgrade_vendored_plan_apply_uses_new_lint_and_preserves_records(self):
+        self.kit_cw('init', '--apply')
+        installed = self.root / 'cowork/cw'
+        # Only the new lint knows this marker; exercising the installed subprocess
+        # distinguishes it from an in-process call to the old implementation.
+        source = self.source / 'bin/cw'
+        source.write_text(source.read_text().replace("print('kit: ' +", "print('new lint'); print('kit: ' +"))
+        self.git('add', 'bin/cw', cwd=self.source)
+        self.git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'New lint', cwd=self.source)
+        planned = self.git('rev-parse', 'HEAD', cwd=self.source)
+        before = self.snapshot()
+        plan = self.cw('upgrade', '--kit', self.kit, script=installed)
+        self.assertIn('Upgrade kit: ' + planned, plan.stdout)
+        self.assertIn('Confirm the upgrade plan', plan.stdout)
+        self.assertNotIn('Confirm the seats,', plan.stdout)
+        self.assertEqual(before, self.snapshot())
+        # An upstream advance after review must not be pulled by --apply.
+        self.git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '--allow-empty', '-m', 'Later', cwd=self.source)
+        applied = self.cw('upgrade', '--kit', self.kit, '--apply', script=installed)
+        self.assertIn('new lint', applied.stdout)
+        self.assertIn('kit: ' + planned, applied.stdout)
+        self.assertEqual(planned, self.git('rev-parse', 'HEAD'))
+        after = self.snapshot()
+        for path in before.keys() - {'cowork/cw', 'cowork/kit-version'}:
+            self.assertEqual(before[path], after[path], path)
+        self.assertEqual(self.calls(), [])
+
+    def test_upgrade_refuses_invalid_clones_before_pull_or_apply(self):
+        self.kit_cw('init', '--apply')
+        before = self.snapshot()
+        invalid = self.work / 'invalid'
+        self.copy_assets(invalid)
+        nested = self.kit / 'nested'
+        self.copy_assets(nested)
+        for kit, expected in ((self.work / 'missing', 'existing release'),
+                              (invalid, 'repository root'), (nested, 'repository root')):
+            for flags in ((), ('--apply',)):
+                result = self.cw('upgrade', '--kit', kit, *flags, code=1)
+                self.assertIn(expected, result.stderr)
+                self.assertEqual(before, self.snapshot())
+        shutil.rmtree(nested)
+        entry = self.kit / 'bin/cw'
+        original = entry.read_bytes()
+        entry.unlink()
+        for flags in ((), ('--apply',)):
+            self.assertIn('existing release', self.cw('upgrade', '--kit', self.kit, *flags, code=1).stderr)
+        entry.write_bytes(original)
+        entry.chmod(0o755)
+        for name in ('cowork', 'tools/publish-kit'):
+            path = self.kit / name
+            path.mkdir(parents=True)
+            for flags in ((), ('--apply',)):
+                self.assertIn('development checkout', self.cw('upgrade', '--kit', self.kit, *flags, code=1).stderr)
+            path.rmdir()
+        # Dirty files outside KIT_PATHS must also refuse, before a failed pull.
+        self.git('remote', 'remove', 'origin')
+        for name in ('LICENSE', 'README.md'):
+            path = self.kit / name
+            original = path.read_bytes() if path.exists() else None
+            path.write_text('Local changes.\n')
+            for flags in ((), ('--apply',)):
+                result = self.cw('upgrade', '--kit', self.kit, *flags, code=1)
+                self.assertIn('clean release clone', result.stderr)
+                self.assertEqual(before, self.snapshot())
+            if original is None:
+                path.unlink()
+            else:
+                path.write_bytes(original)
+        result = self.cw('upgrade', '--kit', self.kit, code=1)
+        self.assertIn('pull --ff-only failed', result.stderr)
+        self.assertEqual(before, self.snapshot())
+
+    def test_upgrade_requires_both_install_files_and_skips_lint_after_init_failure(self):
+        for flags in ((), ('--apply',)):
+            result = self.cw('--root', self.root, 'upgrade', '--kit', self.kit, *flags, code=1)
+            self.assertIn('existing install', result.stderr)
+        self.kit_cw('init', '--apply')
+        for name in ('cowork/cw', 'cowork/seats.tsv'):
+            path = self.root / name
+            original = path.read_bytes()
+            path.unlink()
+            for flags in ((), ('--apply',)):
+                result = self.cw('--root', self.root, 'upgrade', '--kit', self.kit, *flags, code=1)
+                self.assertIn('existing install', result.stderr)
+            path.write_bytes(original)
+        agents = self.root / 'AGENTS.md'
+        agents.write_text('<!-- agent-co-work:begin v1 -->\nMalformed block\n')
+        before = self.snapshot()
+        result = self.cw('upgrade', '--kit', self.kit, '--apply', code=1)
+        self.assertIn('Malformed', result.stderr)
+        self.assertNotIn('Caps OK.', result.stdout)
+        self.assertNotIn('Validation OK;', result.stdout)
+        self.assertEqual(before, self.snapshot())
+
 
 if __name__ == '__main__':
     unittest.main()

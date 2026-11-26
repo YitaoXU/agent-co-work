@@ -6,80 +6,116 @@
 你与协调员商定方向、批准每个任务、裁决重大问题，并审阅协调员给出的结论优先摘要；顾问按需提供审阅。
 任意席位都可运行任意受支持的 agent CLI（`claude`、`codex`、`agy`）；三 agent 配置仅作示例，权威协作规则以 [cowork 技能](skills/cowork/SKILL.md#task-loop) 为准。
 
-## 快速开始
+## 开始之前
 
-前提：macOS/Linux、Python 3.9+、已配置 GitHub SSH 访问的 `git`、Herdr 应用与 `hc` 0.1.22+，以及 `claude`、`codex`、`agy` 中至少一个 CLI（见[环境要求](#环境要求)与[使用 Herdr 应用](#使用-herdr-应用)）。
+使用 macOS 或 Linux，并安装 Python 3.9+ 和 `git`。**你无需自己运行 `cw` 或 Python**：与协调员讨论工作、审阅计划并确认修改即可。
 
-1. **每台机器只需一次**，将发布仓库克隆到固定位置：
-
-   ```sh
-   git clone git@github.com:YitaoXU/agent-co-work.git ~/.agent-co-work
-   ```
-
-2. **新项目**：在 Herdr 应用标签页中打开项目根目录，在该标签页启动协调员（例如 `claude -n yyyymmdd-coordinator`），粘贴下方的[协调员提示词](#协调员提示词)。若要手动安装，在同一标签页的项目根目录运行：
+1. 安装 [Herdr](https://herdr.dev/download/)。Apple silicon macOS 可下载 [DMG](https://releases.herdr.dev/app/Herdr.dmg)，将 Herdr 拖入 Applications。macOS 或 Linux 也可运行安装器：
 
    ```sh
-   git -C ~/.agent-co-work pull --ff-only
-   python3 ~/.agent-co-work/bin/cw init
+   curl -fsSL https://releases.herdr.dev/app/install.sh | sh
    ```
 
-   检查席位表、文件计划和 kit 版本，确认后执行：
+2. 打开 Herdr 终端，检查 `hc --version`，确保 `~/.local/bin` 在 `PATH` 中（或使用自定义的 `HC_INSTALL_DIR`）。macOS 的终端隐私权限应授予 **Herdr Core**；已有 Herdr.app 权限不会自动转移。
+3. 安装并登录希望使用的 agent CLI：`claude`、`codex` 或 `agy`。只装一个也可以；协调员检测已安装 CLI，再从可用项中推荐席位。
+4. 公开 kit 使用 HTTPS `git clone`，不需要 GitHub 密钥。私有仓库需要你正常使用的 GitHub 凭据。
 
-   ```sh
-   python3 ~/.agent-co-work/bin/cw init --apply
-   cowork/cw lint
-   ```
+## 启动第一个协调员
 
-3. **升级**：在已有项目的协调员 Herdr 标签页中，从项目根目录更新发布仓库并查看升级计划：
+打开 Herdr，用标签栏中的 **`+`** 在项目文件夹创建 space/tab，并在其中启动协调员。建议命名，但不强制；也可以使用其他受支持的协调员 CLI。
 
-   ```sh
-   git -C ~/.agent-co-work pull --ff-only
-   python3 ~/.agent-co-work/bin/cw init --upgrade
-   ```
-
-   确认计划后执行：
-
-   ```sh
-   python3 ~/.agent-co-work/bin/cw init --upgrade --apply
-   cowork/cw lint
-   ```
+```text
+1. 打开 Herdr → + → 选择项目文件夹。
+2. 运行：claude -n yyyymmdd-coordinator
+3. 粘贴下方协调员提示词，填写 <project description>。
+```
 
 ### 协调员提示词
 
 ```text
-请在当前项目中安装或升级 agent-co-work。如果 ~/.agent-co-work 不存在，
-将 git@github.com:YitaoXU/agent-co-work.git 克隆到 ~/.agent-co-work；
-否则运行 git -C ~/.agent-co-work pull --ff-only。
-阅读 ~/.agent-co-work/skills/cowork-init/SKILL.md。
-首次安装使用 python3 ~/.agent-co-work/bin/cw init；
-已有安装使用 python3 ~/.agent-co-work/bin/cw init --upgrade。
-向我展示席位表、文件计划和 kit 版本，仅在我确认后，在同一条命令中追加
---apply 执行，然后运行 cowork/cw lint。
+在这个项目中安装或升级 agent-co-work。首次安装时，若 ~/.agent-co-work
+不存在，运行：
+git clone https://github.com/YitaoXU/agent-co-work.git ~/.agent-co-work
+否则用 git -C ~/.agent-co-work pull --ff-only 更新发布 clone。
+已有安装使用 cowork/cw upgrade 拉取并显示计划；若没有此命令，按
+cowork-init 的旧版引导流程操作。
+阅读 ~/.agent-co-work/skills/cowork-init/SKILL.md。检测已安装的 agent CLI
+和模型，只用可用项提出推荐席位表，然后问我保留默认值 / 调整席位。
+需要调整时，每个席位问一个问题：默认配置 / 自填 agent model effort [life]。
+展示完整席位表、文件计划和 kit SHA。等我确认后再应用，然后运行
+cowork/cw lint 核对 SHA。使用以下描述准备项目的 Direction 和 Plan。
+
+<project description>
+目标：
+当前状态：
+关键文件夹与文档：
+首先要做的事：
 ```
+
+## 新项目
+
+1. 启动上述协调员。它会在 `~/.agent-co-work` 克隆或更新发布版、阅读安装技能，并检测可用 CLI 和模型。
+2. 审阅包含 `discussion` 的推荐席位表，选择**保留全部默认值**或**调整席位**。每个待调整席位选择默认配置，或根据列出的合法值填写 `agent model effort [life]`。协调员会提示缺失的 CLI，并提供单 CLI 配置。
+3. 确认完整席位表与安装计划，包括 kit SHA 和要创建或追加的文件。协调员应用同一计划，并用 lint 检查安装版本。
+4. 安装会添加协作文件、技能和指令入口；首次安装还会添加五项协作/输出忽略项。标记指令块以外的已有项目文字保持原样。向协调员提供项目描述，讨论 Direction 和 Plan，准备好后批准第一个任务。
+
+## 升级
+
+1. 告诉现有项目的协调员要升级。它运行 `cowork/cw upgrade`，检查发布 clone、执行 `--ff-only` 拉取，并展示升级计划与 SHA。
+2. 审阅并确认计划。协调员运行 `cowork/cw upgrade --apply`，**不再次拉取**，直接应用当前 clone，然后运行新安装的 lint。审阅至应用期间应保持共享 clone 不变；若其他项目更新了它，先重新审阅计划。
+3. 对照确认的计划核对安装 SHA。升级刷新 CLI、内嵌模板、复制的技能、版本记录和 `AGENTS.md` 标记块。席位、任务记录、协调员地址、`.gitignore` 及标记块以外的项目文字保持原样。
+4. kit 文件缺失、kit 不是 Git 仓库根目录、使用开发仓库、有任何未提交或未跟踪文件、项目安装不完整或拉取失败，都会停止升级。若旧 CLI 不支持 `upgrade`，协调员先执行下方旧版命令一次，此后使用短命令。
+
+### 协调员执行的命令
+
+这些是协调员的命令参考：在项目根目录，以沙盒外的正常权限运行。你只需审阅并确认产生的计划。
+
+```sh
+# 首次安装：仅克隆一次；已有固定发布 clone 时更新。
+git clone https://github.com/YitaoXU/agent-co-work.git ~/.agent-co-work
+git -C ~/.agent-co-work pull --ff-only
+python3 ~/.agent-co-work/bin/cw init --seat worker-heavy=codex:gpt-6-astra:high:long
+# 确认席位表与计划后，原样重复选定的 --seat 参数：
+python3 ~/.agent-co-work/bin/cw init --seat worker-heavy=codex:gpt-6-astra:high:long --apply
+cowork/cw lint
+
+# 已有安装：先生成计划，确认后再应用。
+cowork/cw upgrade
+cowork/cw upgrade --apply
+
+# 仅在旧 cw 没有 upgrade 命令时使用旧版引导：
+git -C ~/.agent-co-work pull --ff-only
+python3 ~/.agent-co-work/bin/cw init --upgrade
+# 确认后：
+python3 ~/.agent-co-work/bin/cw init --upgrade --apply
+cowork/cw lint
+```
+
+`upgrade --kit <dir>` 可指定其他发布 clone（默认 `~/.agent-co-work`）；计划与应用需使用同一选项。`--seat` 的 `=` 后恰好接四个字段。可选 `args` 在安装后用 `cw seat set --args='...'` 配置；不得在整个席位上设置 `-a never`。
 
 ## 核心概念
 
 - **项目（Project）**：记录在 `cowork/projects/<name>.md` 中的长期工作（`status: active|closed`，包含 `Direction`、`Plan`、`Resources`、`Decisions`），由协调员维护。独立任务可不关联项目。
 - **任务（`kind: task`）**：以用户决策收尾的工作单元，运行在 `main` 或 `side` 线上（或 `-`）。每个任务启动前都必须获得用户批准，多个已批准任务可并行推进。
 - **步骤（`kind: step`）**：任务内部的具体工作（评审、实现、审计、修复、检查），可记录在任务的 `State` 中，也可新建带 `parent: <task>` 的独立步骤文件。协调员会话使用 `kind: seat`。
-- **席位（Seats）**：`cowork/seats.tsv` 中定义的命名角色（`coordinator`、`coordinator-alt`、`advisor`、`coder-heavy`、`coder-light`、`auditor`），将各角色映射到受支持的 agent CLI、模型、推理强度（effort）、生命周期（`short` 子终端或 `long` 无父终端），以及可选的带引号额外 CLI `args`。
+- **席位（Seats）**：`cowork/seats.tsv` 中定义的命名角色（`coordinator`、`coordinator-alt`、`advisor`、`worker-heavy`、`worker-light`、`auditor`、`discussion`），将各角色映射到受支持的 agent CLI、模型、推理强度（effort）、生命周期（`short` 子终端或 `long` 无父终端），以及可选的带引号额外 CLI `args`。
 - **`cowork/` 文件**：`cowork/cw`（内嵌独立 CLI）、`kit-version`（已安装 kit 的提交和来源）、`seats.tsv`（席位表）、`coordinator.addr`（当前活跃协调员终端 ID）、`README.md`（自动生成的总览）、`projects/<name>.md`、路径永不迁移的每日任务记录 `yyyymmdd/<task>.md`、`locks/<resource>` 与 `lessons/`。
 
 ## 环境要求
 
 - **宿主系统（macOS / Linux / POSIX）**：`bin/cw` 无条件导入 `fcntl` 并使用 `fcntl.flock` 串行化资源锁；不支持原生 Windows Python。
 - **Python 3.9+**：仅使用标准库；`bin/cw` 无第三方依赖。
-- **Herdr（`hc` 0.1.22+）**：用于实时启动、审批、状态查看、汇报与交接；离线记录管理与命令预览时不强制要求。
+- **Herdr（`hc`，已测试 0.1.22）**：用于实时启动、审批、状态查看、汇报与交接；离线记录管理与命令预览时不强制要求。
 - **Agent CLI（`claude`、`codex`、`agy`）**：只需安装 `cowork/seats.tsv` 或单任务覆盖配置中实际用到的 CLI，不要求全部安装——纯 Claude 配置只需 `PATH` 中有 `claude`。
 - **`git`**：用于克隆和更新 GitHub 发布仓库、识别发布版本，以及通过 `cw new --worktree` 创建隔离工作树。安装后的记录管理命令无需 Git。
 
 ## 安装细节
 
-固定在 `~/.agent-co-work` 的发布 clone 供所有目标项目共用。安装与升级均通过 `python3 ~/.agent-co-work/bin/cw` 执行，以使用发布版本的最新技能和模板。
+固定在 `~/.agent-co-work` 的发布 clone 供所有目标项目共用。协调员使用 `python3 ~/.agent-co-work/bin/cw` 安装，使用 `cowork/cw upgrade` 升级；后者调用发布 clone 当前的 CLI 和资源。
 
 **席位**：根据已安装的 CLI 查看[选择席位](#选择席位)，其中包含单 CLI 示例。首次安装前，可向 `init` 传入 `--seat <seat>=<agent>:<model>:<effort>:<life>`（可重复指定）覆盖默认席位；检查新计划后，在完全相同的命令中追加 `--apply`。使用 `cowork/cw seats` 查看已安装的席位表。
 
-**Kit 版本**：首次安装的计划显示 `kit: to <sha>`，版本有变化的升级显示 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出已安装版本和 `Caps OK.`，供你与计划核对。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。部署前检查有关 kit 文件未提交改动或使用开发仓库的告警。
+**Kit 版本**：首次安装的计划显示 `kit: to <sha>`，版本有变化的升级显示 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出已安装版本，供你与计划核对。仅在无告警和错误时输出 `Caps OK.`；长度或重复行提示则显示 `Validation OK; <n> over guideline.`。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。`init` 对 kit 未提交改动和开发仓库仍仅告警；`upgrade` 则拒绝这些 clone。
 
 **`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将四个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）复制到 `.claude/skills/` 和 `.agents/skills/`；首次安装时向 `.gitignore` 追加缺失的 `cowork/`、`output/`、`.scratch/`、`.tmp/`、`.worktrees/`（计划中列出），向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。已有安装的普通 init 和 `--upgrade` 逐字节保留 `.gitignore`，缺少默认项时提示。普通 init 保留其他已有内容，对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
 
@@ -87,15 +123,19 @@
 
 ### 使用 Herdr 应用
 
-Herdr 负责显示空间（space）、标签页（tab）和窗格（pane），`herdr-core`（`hc`）负责运行其中的终端并在窗口关闭后保持它们存活（关闭窗格、标签页或空间则会结束其中的终端）。
+打开 Herdr，用标签栏的 `+` 在项目文件夹打开终端。在其中启动协调员 CLI，粘贴[协调员提示词](#协调员提示词)。
 
-1. 打开 Herdr 应用，并在应用中为目标项目目录新建空间或标签页（命令面板 `app.palette` 会按名称及快捷键列出包括 `space.new` 和 `tab.new` 在内的所有命令，`app.help` 可开关快捷键对话框；尚未打开任何空间时，新建标签页会自动创建一个空间）。
-2. 在该终端中启动 Claude Code：`claude -n yyyymmdd-coordinator`（或你选定的协调员 CLI），然后粘贴“快速开始”中的[协调员提示词](#协调员提示词)。
-3. 启动其他席位时，`cowork/cw start` 会把调用方的 `herdr.space=<id>` 标签传给 `hc run` 且不设置 `herdr.tab`，因此 Herdr 会在同一个空间中为每个已启动的席位新建一个标签页。 长席位使用 `--no-parent`，短席位使用 `--parent <调用方 t-id>`。
+启动席位时，`cowork/cw start` 把调用方的 `herdr.space=<id>` 标签传给 `hc run`，不设置 `herdr.tab`，请求在同一空间创建新标签页。长席位使用 `--no-parent`，短席位使用 `--parent <caller t-id>`。
 
 ## 选择席位
 
 `templates/seats.tsv` 中的默认三 agent 配置仅作示例。任何席位都可以使用任意受支持的适配器（`claude`、`codex`、`agy`）及该 CLI 接受的任意模型与推理强度。可选的第六列带引号 `args`（`-` 或留空表示无）用于提供额外适配器 CLI 参数，按 shell 风格引号规则拆分（内层引号可保留空格，不执行 shell 展开）并原样追加到适配器 argv 末尾。
+
+协调员先在沙盒外检测已安装 CLI 和模型（`command -v claude codex agy`、`agy models`、`codex debug models`、Claude 别名），再只用已安装项提出推荐表。选择保留默认值 / 调整席位；每个调整问题提供默认配置 / 自填 `agent model effort [life]`。Claude 协调员使用问题工具（每次最多四问），其他协调员在聊天中询问。应用前确认完整表格。Claude、Codex 或 agy 均可单独使用。
+
+Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出相同级别，并将 effort 放在模型名中（如 `gemini-4-neon-xhigh`），因此应保持二者一致。Codex 的 effort 取决于模型，以本机模型列表为准。不要选择 `ultra`（自动委派子 agent）；未列出的值保持未验证。这些是探测指南，不是 CLI 内硬编码的校验规则。
+
+已有项目保留旧 `coder-heavy` / `coder-light` 行及记录；升级不会迁移席位。项目缺少某个模板默认席位时，会回退到内嵌默认行，后续可用 `cw seat set` 将自定义行追加到旧项目。
 
 每格依次列出 `agent model effort life`；可选的 `args` 见上文。
 
@@ -104,14 +144,19 @@ Herdr 负责显示空间（space）、标签页（tab）和窗格（pane），`h
 | `coordinator` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` |
 | `coordinator-alt` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `agy gemini-4-neon-xhigh xhigh long` |
 | `advisor` | `claude claude-opus-5-5 high short` | `claude claude-opus-5-5 high short` | `agy gemini-4-neon-xhigh xhigh short` |
-| `coder-heavy` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
-| `coder-light` | `claude claude-opus-5-5 high long` | `codex gpt-6.1-sol max long` | `codex gpt-6.1-sol max long` |
+| `worker-heavy` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
+| `worker-light` | `claude claude-opus-5-5 high long` | `codex gpt-6.1-sol max long` | `codex gpt-6.1-sol max long` |
 | `auditor` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
+| `discussion` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` |
 
 - **修改席位默认值**：初始化阶段可传 `--seat <seat>=<agent>:<model>:<effort>:<life>`（`args` 在初始化后配置）；初始化完成后运行 `cowork/cw seat set [--args='...'] <seat> <agent> <model> <effort> [short|long]`（更新 `cowork/seats.tsv`、保留注释，并在调用方记录中追加一行 `State`）。`--args='...'` 替换额外适配器选项（例如 `--args='--sandbox workspace-write'` 或 `'--config "label=two words"'`），省略 `--args` 则保留现有 `args`，`--args=-` 用于清空；切换适配器时请清空或替换不兼容的选项。
 - **为单个任务指定 agent**：向 `cowork/cw new` 传入 `--agent <agent>:<model>:<effort>[:<life>]`，或运行 `cowork/cw set <taskfile> agent=<agent>:<model>:<effort>[:<life>]`（`agent=-` 恢复席位默认值）。省略 `life` 时沿用席位设置，且单任务覆盖会保留该席位的 `args`（因此当席位带有特定适配器的 `args` 时，切换适配器前需先清空或更新这些 `args`）；席位的角色和命名规则保持不变。
 
 - **单任务额外参数**：`cw new ... --args='-a never'` 或 `cw set <taskfile> 'args=-a never'` 将任务参数追加在席位参数之后，三种适配器一致。`args=-` 仅清空任务参数；旧记录缺少该字段时视为空。使用 shell 风格引号但不执行 shell 展开；`args: --label "run # 1" # comment` 保留引号中的井号。无人值守选项只放在需要它的任务上。
+
+## 讨论席位
+
+请协调员打开一个讨论席位（可指定希望使用的 agent）。它准备含 Goal 和上下文文件列表的独立 step，启动后告诉你标签页名称。讨论席位会先打招呼并等待，你直接在该标签页讨论。只有你明确要求时才编辑项目文件，绝不暂存或提交；你结束讨论时，它才汇报结论和未决问题。协调员阅读总结、记录决策并关闭记录。
 
 ## 默认项目布局
 
@@ -127,7 +172,7 @@ Herdr 负责显示空间（space）、标签页（tab）和窗格（pane），`h
 | `.tmp/` | 可丢弃的克隆、沙箱、探测 | 忽略 | 否，先导出必要证据 |
 | `.worktrees/` | 可选的隔离检出 | 忽略 | 否，合并或结项后清理 |
 
-各类文件的生命周期、上限和历史位置见 [归纳技能](skills/cowork-consolidate/SKILL.md)。
+各类文件的生命周期、建议长度和历史位置见 [归纳技能](skills/cowork-consolidate/SKILL.md)。
 
 ## 运行流程
 
@@ -168,9 +213,9 @@ flowchart TD
 - `cw report "<conclusion>; <path>"` 向协调员发送带任务前缀的消息。`--to <task>` 优先解析发送方同日记录，否则使用最新同名记录，发送给活跃目标并抄送协调员；目标缺失则只通知协调员。每个直接收件方都有送达回执。
 - 报告发送最多尝试三次，每次约 180 秒，整条命令共用 10 分钟预算（含 `--to` 的两个收件方）。每次重试前读取目标屏幕；正文已显示则视为送达，不再重发。进度写入 stderr，仅最终结果产生回执。任务投递、按键、启动及其他通知保持原有行为。
 - 协调员报告失败时追加 `REPORT (undelivered):`；随后相同正文和目的地送达时追加 `REPORT (delivered):`，保留失败记录。普通首次成功不新增 State 行。`cw status` 标记未解决回执，包括已关闭或未分配终端的任务；不同正文/目的地互不消除，再次失败会重新标记。
-- `cw index` 生成不超过 60 行的概览：按项目/线路分组的活跃 task/seat，以及近 7 天关闭的记录。step 汇总为父任务行上的计数（同日父任务优先，否则最新）；无父任务的 step 留在每日记录中。溢出时失败，不覆盖概览。
+- `cw index` 生成以 60 行为建议长度的概览：按项目/线路分组的活跃 task/seat，以及近 7 天关闭的记录。step 汇总为父任务行上的计数（同日父任务优先，否则最新）；无父任务的 step 留在每日记录中。超出时仍写入概览并告警；应进行整理。
 - `cw lessons [yyyymmdd]` 从 Wrap-up/旧 Debrief 刷新每日 From tasks，保留 Takeaways。
-- `cw lint` 打印安装版本、校验头部和项目状态，并检查非空节行数：Goal <=3、State <=10、Handover <=20、项目 Decisions <=20。文件上限为教训 README <=40、概览 <=60；项目历史归档不受 Decisions 检查。超过 40 字符的完全重复行仅作为诊断。
+- `cw lint` 打印安装版本、校验头部和项目状态，并检查非空节行数：Goal <=3、State <=10、Handover <=20、项目 Decisions <=20。文件建议长度为教训 README <=40、概览 <=60；项目历史归档不受 Decisions 检查。长度超出与超过 40 字符的完全重复行输出 `over guideline: ...; consider cowork-consolidate`，退出码为 0。保持简洁，超出时整理。项目/任务头部、名称、席位格式与路径/符号链接越界仍以退出码 1 失败。
 
 任务模板包含 `args: -`，旧 `size:` 和 `debrief` / `## Debrief` 仍可读取。用 `cw set` 修改头部。
 
@@ -203,6 +248,7 @@ flowchart TD
 | 命令 | 用途 |
 |---|---|
 | `python3 ~/.agent-co-work/bin/cw init [--seat seat=agent:model:effort:life] [--upgrade] [--apply]` | 从固定 GitHub 发布 clone 安装或升级；规划版本，并在首次安装或升级时写入 `cowork/kit-version` |
+| `cw upgrade [--kit <dir>] [--apply]` | 拉取并显示发布计划/SHA；应用时不拉取，随后运行新 lint |
 | `cw seats` | 打印 `cowork/seats.tsv` |
 | `cw seat set [--args='...'] <seat> <agent> <model> <effort> [life]` | 更新单个席位配置（省略 `--args` 保留原值，`--args=-` 清空）并追加一行 `State` |
 | `cw project new <name>` | 创建 `cowork/projects/<name>.md` |
@@ -220,7 +266,7 @@ flowchart TD
 | `cw handover [context\|tokens \| --accept]` | 启动继任协调员或接管 `coordinator.addr` |
 | `cw index` | 重新生成 `cowork/README.md` |
 | `cw lessons [yyyymmdd]` | 将 Wrap-up/Debrief 中的 `- lesson:` 汇总到 `cowork/lessons/<date>.md` |
-| `cw lint` | 输出已安装的 `cowork/kit-version`；检查记录行数上限、项目/任务校验以及重复行 |
+| `cw lint` | 输出已安装的 `cowork/kit-version`；校验项目/任务/席位结构，提示长度与重复行 |
 
 </details>
 
@@ -236,5 +282,9 @@ flowchart TD
 ## 开发说明
 
 - **目录结构**：`bin/cw`（单个纯标准库 Python 3 脚本）、`skills/`（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）、`templates/` 与 `tests/`。
-- **单一规则来源**：协作规则只维护在 [skills/cowork/SKILL.md](skills/cowork/SKILL.md)（上限 150 行）；其余三个技能仅链接至此，不重复陈述规则。
+- **单一规则来源**：协作规则只维护在 [skills/cowork/SKILL.md](skills/cowork/SKILL.md)（建议不超过 150 行）；其余三个技能仅链接至此，不重复陈述规则。
 - **日常校验**：在 kit 仓库中运行 `python3 -m unittest discover tests`；在已初始化的项目中运行 `cowork/cw lint`，校验该项目的协作记录。
+
+### 维护者发布
+
+只有选择 SSH 发布的维护者才需要 SSH（例如 `git@github.com:YitaoXU/agent-co-work.git`）。已有 SSH clone 仍然可用，版本记录保留其实际 origin。用户通过 HTTPS 安装公开发布版。

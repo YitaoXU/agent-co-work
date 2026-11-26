@@ -21,8 +21,8 @@ class RuleTests(unittest.TestCase):
         self.install()
         for agent in ('claude', 'codex', 'agy'):
             with self.subTest(agent=agent):
-                self.cw('seat', 'set', 'coder-light', agent, 'model', 'high', '--args=--label seat')
-                p = self.record(agent, 'step', 'coder-light', '--args=--label "task # value" -a never')
+                self.cw('seat', 'set', 'worker-light', agent, 'model', 'high', '--args=--label seat')
+                p = self.record(agent, 'step', 'worker-light', '--args=--label "task # value" -a never')
                 run = shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])
                 self.assertEqual(run[-6:], ['--label', 'seat', '--label', 'task # value', '-a', 'never'])
                 p.write_text(p.read_text().replace(' -a never\n', ' -a never  # keep comment\n'))
@@ -215,7 +215,7 @@ class RuleTests(unittest.TestCase):
         (archive / 'plan-history.md').write_text('## Decisions\n' + 'old\n' * 30)
         self.cw('lint')
         p.write_text(p.read_text() + '- decision 21\n')
-        self.assertIn('Decisions has 21 lines (cap 20)', self.cw('lint', code=1).stdout)
+        self.assertIn('Decisions has 21 lines (guideline 20)', self.cw('lint').stdout)
 
     def test_index_folds_steps_and_resolves_same_day_parents(self):
         self.install()
@@ -225,7 +225,7 @@ class RuleTests(unittest.TestCase):
         module = self.module()
         for n in range(65):
             p = parent.parent / f'step-{n}.md'
-            p.write_text(module.new_text(f'step-{n}', 'step', 'parent', 'coder-heavy'))
+            p.write_text(module.new_text(f'step-{n}', 'step', 'parent', 'worker-heavy'))
         old_step = older.parent / 'old-step.md'
         old_step.write_text(module.new_text('old-step', 'step', 'parent', 'advisor'))
         self.cw('index')
@@ -242,7 +242,7 @@ class RuleTests(unittest.TestCase):
         folder = self.root / '.worktrees/assigned'
         folder.mkdir(parents=True)
         for agent in ('codex', 'agy', 'claude'):
-            p = self.record(agent, 'step', 'coder-light', '--agent', f'{agent}:model:high')
+            p = self.record(agent, 'step', 'worker-light', '--agent', f'{agent}:model:high')
             self.cw('set', p, 'worktree=.worktrees/assigned')
             for displayed, allowed in ((folder, True), (self.root, True),
                                        (self.root / '.worktrees/sibling', False), (folder / 'nested', False)):

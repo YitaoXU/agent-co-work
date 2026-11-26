@@ -582,6 +582,8 @@ def seats(root):
 def get_seat(root, name):
     rows = seats(root)
     if name not in rows:
+        rows = seat_rows(asset('templates/seats.tsv'))
+    if name not in rows:
         raise CWError(f'Unknown seat: {name}')
     return rows[name]
 
@@ -589,7 +591,12 @@ def get_seat(root, name):
 def replace_seat(text, name, agent, model, effort, life, extra_args=None):
     rows = seat_rows(text)
     if name not in rows:
-        raise CWError(f'Unknown seat: {name}')
+        defaults = seat_rows(asset('templates/seats.tsv'))
+        if name not in defaults:
+            raise CWError(f'Unknown seat: {name}')
+        row = defaults[name]
+        text += ('' if not text or text.endswith('\n') else '\n') + '\t'.join(row[k] for k in ('seat', 'agent', 'model', 'effort', 'life')) + '\n'
+        rows[name] = row
     for value in (agent, model, effort, life):
         if not value or re.search(r'\s|#', value):
             raise CWError('Seat values must be nonempty whitespace-free tokens.')
@@ -676,7 +683,7 @@ def overview(root, address=None, extra=None):
         active.extend([f'### {label} / {line}', *rows])
     result = render('cowork-readme.md', address=address, active='\n'.join(active) or '- None.', recent='\n'.join(recent) or '- None.')
     if len(result.splitlines()) > 60:
-        raise CWError('Overview exceeds 60 lines; consolidate/close tasks before regenerating.')
+        print('over guideline: cowork/README.md: overview exceeds 60 lines; consider cowork-consolidate')
     return result
 
 
@@ -696,7 +703,7 @@ def init(root, args):
     if seat_path.exists() and args.seat:
         raise CWError('Seats already exist; use cw seat set to change them.')
     assets = {f'templates/{name}': asset(f'templates/{name}') for name in (
-        'seats.tsv', 'task.md', 'project.md', 'agents-block.md', 'start-prompt.txt',
+        'seats.tsv', 'task.md', 'project.md', 'agents-block.md', 'start-prompt.txt', 'discuss-prompt.txt',
         'handover-prompt.txt', 'lessons-day.md', 'lessons-readme.md', 'cowork-readme.md')}
     assets.update({f'skills/{s}/SKILL.md': asset(f'skills/{s}/SKILL.md') for s in SKILLS})
     source = read(Path(__file__))
@@ -798,7 +805,44 @@ def init(root, args):
         for path, action, content in changed:
             write(root, path, content, executable=path == 'cowork/cw')
     else:
-        print('Plan only. Confirm the seats, then rerun with --apply.')
+        print('Plan only. Confirm the upgrade plan, then rerun with --apply.' if args.upgrade else
+              'Plan only. Confirm the seats, then rerun with --apply.')
+
+
+def upgrade(root, args):
+    """Plan from an updated release clone; apply that clone without pulling."""
+    kit = Path(args.kit).expanduser().resolve()
+    if not kit.is_dir() or not (kit / 'bin/cw').is_file():
+        raise CWError('Upgrade requires an existing release kit directory with bin/cw.')
+    def git(*values):
+        return subprocess.run(['git', '--no-optional-locks', '-C', str(kit), *values],
+                              text=True, capture_output=True)
+    top = git('rev-parse', '--show-toplevel')
+    if top.returncode or Path(top.stdout.strip()).resolve() != kit:
+        raise CWError('Upgrade kit must be a git repository root.')
+    if (kit / 'cowork').exists() or (kit / 'tools/publish-kit').exists():
+        raise CWError('Upgrade refuses a development checkout; use a release clone.')
+    dirty = git('status', '--porcelain=v1', '--untracked-files=all')
+    if dirty.returncode or dirty.stdout:
+        raise CWError('Upgrade requires a clean release clone, including untracked files.')
+    if not all(inside(root, name).is_file() for name in ('cowork/cw', 'cowork/seats.tsv')):
+        raise CWError('Upgrade requires an existing install: cowork/cw and cowork/seats.tsv.')
+    if not args.apply:
+        pulled = git('pull', '--ff-only')
+        if pulled.returncode:
+            raise CWError('Upgrade pull --ff-only failed: ' + (pulled.stderr.strip() or pulled.stdout.strip()))
+    head = git('rev-parse', '--verify', 'HEAD^{commit}')
+    if head.returncode:
+        raise CWError('Upgrade kit has no HEAD commit.')
+    print('Upgrade kit: ' + head.stdout.strip(), flush=True)
+    command = [sys.executable, str(kit / 'bin/cw'), '--root', str(root), 'init', '--upgrade']
+    if args.apply:
+        command.append('--apply')
+    result = subprocess.run(command)
+    if result.returncode or not args.apply:
+        return result.returncode
+    return subprocess.run([sys.executable, str(inside(root, 'cowork/cw')),
+                           '--root', str(root), 'lint']).returncode
 
 
 def choose_name(root, task, live, reserve_file=False):
@@ -1216,7 +1260,7 @@ def start(root, args):
     info = terminal(hc('get', caller, '--json', deadline=deadline)) if caller else {}
     name = choose_name(root, values['task'], live)
     worktree = values.get('worktree', '-')
-    prompt = render('start-prompt.txt', seat=values['seat'], task=values['task'], name=name, taskfile=p,
+    prompt = render('discuss-prompt.txt' if values['seat'] == 'discussion' else 'start-prompt.txt', seat=values['seat'], task=values['task'], name=name, taskfile=p,
                     worktree=inside(root, worktree) if worktree != '-' else root).strip()
     commands = launch_plan(root, p, values, seat, name, prompt, info)
     if args.print or not caller:
@@ -1635,8 +1679,13 @@ def lint(root):
     version = read(version_path).strip() if version_path.exists() else ''
     print('kit: ' + (version or 'unknown'))
     violations = []
+    warnings = []
+    try:
+        seats(root)
+    except CWError as exc:
+        violations.append(str(exc))
     duplicates = {}
-    template_lines = {line for name in ('task.md', 'project.md', 'agents-block.md', 'start-prompt.txt', 'handover-prompt.txt',
+    template_lines = {line for name in ('task.md', 'project.md', 'agents-block.md', 'start-prompt.txt', 'discuss-prompt.txt', 'handover-prompt.txt',
                                         'lessons-day.md', 'lessons-readme.md', 'cowork-readme.md')
                       for line in asset('templates/' + name).splitlines()}
     for path in sorted((root / 'cowork').rglob('*.md')):
@@ -1650,7 +1699,7 @@ def lint(root):
                 violations.append(str(exc))
             count = len([line for line in section(text, 'Decisions').splitlines() if line.strip()])
             if count > 20:
-                violations.append(f'{rel}: Decisions has {count} lines (cap 20)')
+                warnings.append(f'{rel}: Decisions has {count} lines (guideline 20)')
         if p in task_paths(root):
             try:
                 task_name(p.stem)
@@ -1660,10 +1709,10 @@ def lint(root):
             for title, cap in (('Goal', 3), ('State', 10), ('Handover', 20)):
                 count = len([line for line in section(text, title).splitlines() if line.strip()])
                 if count > cap:
-                    violations.append(f'{rel}: {title} has {count} lines (cap {cap})')
+                    warnings.append(f'{rel}: {title} has {count} lines (guideline {cap})')
         cap = {'cowork/README.md': 60, 'cowork/lessons/README.md': 40}.get(rel)
         if cap and len(text.splitlines()) > cap:
-            violations.append(f'{rel}: {len(text.splitlines())} lines (cap {cap})')
+            warnings.append(f'{rel}: {len(text.splitlines())} lines (guideline {cap})')
         lines = text.splitlines()
         frontmatter_end = 0
         if lines and lines[0].strip() == '---':
@@ -1673,11 +1722,13 @@ def lint(root):
                 duplicates.setdefault(line, []).append(f'{rel}:{number}')
     for line, locations in duplicates.items():
         if len(locations) > 1:
-            print(f'Duplicate: {line}\n  ' + ', '.join(locations))
+            warnings.append(', '.join(locations) + f': Duplicate: {line}')
     for violation in violations:
         print(violation)
+    for warning in warnings:
+        print(f'over guideline: {warning}; consider cowork-consolidate')
     if not violations:
-        print('Caps OK.')
+        print(f'Validation OK; {len(warnings)} over guideline.' if warnings else 'Caps OK.')
     return 1 if violations else 0
 
 
@@ -1692,6 +1743,9 @@ def parser():
     q = command('init', 'Plan or apply an installation; --apply confirms the seat table')
     q.add_argument('--seat', action='append', default=[])
     q.add_argument('--upgrade', action='store_true')
+    q.add_argument('--apply', action='store_true')
+    q = command('upgrade', 'Pull and plan a release upgrade; --apply uses the clone without pulling')
+    q.add_argument('--kit', default='~/.agent-co-work', help='Release clone directory')
     q.add_argument('--apply', action='store_true')
     command('seats', 'Print the seat table')
     q = command('seat', 'Change one seat')
@@ -1747,7 +1801,7 @@ def parser():
     command('index', 'Regenerate the task overview')
     q = command('lessons', 'Collect daily Wrap-up/legacy Debrief lessons; preserve Takeaways')
     q.add_argument('date', nargs='?')
-    command('lint', 'Check record caps and list duplicate lines')
+    command('lint', 'Validate records and warn about length guidelines and duplicate lines')
     return p
 
 
@@ -1758,17 +1812,17 @@ def main():
         cmd = args.command
         if cmd == 'init':
             init(root, args)
+        elif cmd == 'upgrade':
+            return upgrade(root, args)
         elif cmd == 'seats':
             print(read(inside(root, 'cowork/seats.tsv')), end='')
         elif cmd == 'seat':
             guard_coordinator_identity(root)
             path = inside(root, 'cowork/seats.tsv')
             old = read(path)
-            rows = seat_rows(old)
-            if args.seat not in rows:
-                raise CWError(f'Unknown seat: {args.seat}')
-            life = args.life or rows[args.seat]['life']
-            extra_args = rows[args.seat]['args'] if args.extra_args is None else args.extra_args
+            row = get_seat(root, args.seat)
+            life = args.life or row['life']
+            extra_args = row['args'] if args.extra_args is None else args.extra_args
             new = replace_seat(old, args.seat, args.agent, args.model, args.effort, life, extra_args)
             task = own_task(root)
             state = state_append(read(task), f'seat {args.seat}: {args.agent} {args.model} {args.effort} {life} args={shlex.quote(extra_args or "-")}')

@@ -14,7 +14,7 @@ class V3Tests(unittest.TestCase):
     for name in ('setUp', 'cw', 'configure', 'calls', 'clear_calls', 'install', 'new', 'snapshot', 'module'):
         locals()[name] = getattr(test_cw.CWTests, name)
 
-    def record(self, name, kind='step', seat='coder-heavy', *extra):
+    def record(self, name, kind='step', seat='worker-heavy', *extra):
         self.cw('new', name, '--kind', kind, '--seat', seat, *extra)
         return self.root / f'cowork/{test_cw.DAY}/{name}.md'
 
@@ -39,7 +39,7 @@ class V3Tests(unittest.TestCase):
         for title in ('Direction', 'Plan', 'Resources', 'Decisions'):
             self.assertIn('## ' + title, p.read_text())
         self.assertNotIn('## State', p.read_text())
-        self.record('arm', 'task', 'coder-heavy', '--project', 'campaign', '--line', 'main')
+        self.record('arm', 'task', 'worker-heavy', '--project', 'campaign', '--line', 'main')
         self.assertEqual(p.read_bytes(), before)
         self.cw('project', 'new', 'campaign', code=1)
         for name in ('../bad', 'x' * 21, 'UPPER'):
@@ -76,7 +76,7 @@ class V3Tests(unittest.TestCase):
     def test_gates_parent_resolution_and_advisor_exception(self):
         self.install()
         parent = self.record('parent', 'task')
-        worker = self.record('worker', 'step', 'coder-light', '--parent', 'parent')
+        worker = self.record('worker', 'step', 'worker-light', '--parent', 'parent')
         advisor = self.record('advice', 'step', 'advisor', '--parent', 'parent')
         standalone = self.record('standalone')
         for p in (parent, worker):
@@ -105,7 +105,7 @@ class V3Tests(unittest.TestCase):
     def test_approval_dates_require_real_calendar_days(self):
         self.install()
         parent = self.record('parent', 'task')
-        worker = self.record('worker', 'step', 'coder-light', '--parent', 'parent')
+        worker = self.record('worker', 'step', 'worker-light', '--parent', 'parent')
         original = parent.read_text()
         for date in ('2026-99-99', '2026-00-01', '2026-01-00', '2026-04-31',
                      '2025-02-29', '1900-02-29', '0000-01-01', '2026-2-28'):
@@ -131,7 +131,7 @@ class V3Tests(unittest.TestCase):
         for name in ('-', '--', '-a', 'a-', '-worker', 'worker-'):
             with self.subTest(name=name):
                 before = self.snapshot()
-                self.cw('new', '--kind', 'step', '--seat', 'coder-light', '--', name, code=1)
+                self.cw('new', '--kind', 'step', '--seat', 'worker-light', '--', name, code=1)
                 self.cw('set', valid[0], f'task={name}', code=1)
                 self.assertEqual(self.snapshot(), before)
                 legacy = valid[0].read_text().replace('task: a\n', f'task: {name}\n')
@@ -169,7 +169,7 @@ class V3Tests(unittest.TestCase):
         self.install()
         self.cw('project', 'new', 'campaign')
         for name, line in (('arm', 'main'), ('cleanup', 'side')):
-            self.record(name, 'task', 'coder-heavy', '--project', 'campaign', '--line', line)
+            self.record(name, 'task', 'worker-heavy', '--project', 'campaign', '--line', line)
         self.record('standalone', 'task')
         self.cw('index')
         text = (self.root / 'cowork/README.md').read_text()
