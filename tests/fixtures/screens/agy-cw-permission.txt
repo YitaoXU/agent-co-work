@@ -1,0 +1,11 @@
+Command
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Reason: The command sends a message via `hc send` to the pre-existing coordinator agent (`t22`), which was not started in this session and cannot be unsent.
+Requesting permission for:
+   cowork/cw report "Plan ready for review (count_words->coder-light, --top N->coder-heavy); docs/plan-top.md"
+Run this command?
+> 1. Yes, run command
+  2. Yes, and always allow in this conversation for commands that start with 'cowork/cw'
+  3. Yes, and always allow for commands that start with 'cowork/cw' (Persist to settings.json)
+  4. No, cancel
+  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command
