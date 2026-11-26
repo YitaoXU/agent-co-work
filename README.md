@@ -8,25 +8,29 @@ Any seat can run any supported agent CLI (`claude`, `codex`, `agy`); the three-a
 
 ## Before you start
 
-Use macOS or Linux, with Python 3.9+ and `git` installed. **You never run `cw` or Python yourself**: discuss the work with the coordinator, review its plans, and confirm changes.
+Use macOS or Linux. **You never run `cw` or Python yourself**: discuss the work with the coordinator, review its plans, and confirm changes.
 
-1. Install [Herdr](https://herdr.dev/download/). On Apple silicon macOS, download the [DMG](https://releases.herdr.dev/app/Herdr.dmg) and drag Herdr to Applications. On macOS or Linux, the installer is:
+1. **Install [Herdr](https://herdr.dev/download/).** On Apple silicon macOS, download the [DMG](https://releases.herdr.dev/app/Herdr.dmg) and drag Herdr to Applications. On macOS or Linux, the installer is:
 
    ```sh
    curl -fsSL https://releases.herdr.dev/app/install.sh | sh
    ```
 
-2. Open a Herdr terminal, check `hc --version`, and ensure `~/.local/bin` is on `PATH` (or your custom `HC_INSTALL_DIR`). On macOS, grant terminal privacy requests to **Herdr Core**; existing Herdr.app grants do not transfer.
-3. Install and log in to the agent CLI(s) you want to use: `claude`, `codex`, or `agy`. One is enough; the coordinator detects installed CLIs and recommends seats from those available.
-4. The public kit uses HTTPS `git clone` and needs no GitHub key. A private repository needs your normal GitHub credentials.
+   Open a Herdr terminal, check `hc --version`, and ensure `~/.local/bin` is on `PATH` (or your custom `HC_INSTALL_DIR`). On macOS, grant terminal privacy requests to **Herdr Core**; existing Herdr.app grants do not transfer.
+2. **Install and log in to at least one agent CLI:** `claude`, `codex`, or `agy`. That CLI becomes your coordinator; one is enough, and the coordinator detects installed CLIs and recommends seats from those available.
+3. **Have `python3` 3.9+ and `git` installed** (on macOS, from `xcode-select --install`).
+4. **GitHub access:** none once public (the public kit uses HTTPS `git clone` and needs no GitHub key); while a repository is private, it needs your own normal GitHub credentials.
 
 ## Start your first coordinator
 
-Open Herdr, use **`+`** in the tab bar to create a space/tab in your project folder, and start the coordinator there. A name is recommended, not required; another supported coordinator CLI also works.
+Open Herdr, use **`+`** in the tab bar to create a space/tab in your project folder, and start whichever coordinator CLI you chose (`claude`, `codex`, or `agy`). A session name is optional (recommended when your CLI supports it).
 
 ```text
 1. Open Herdr → + → your project folder.
-2. Run: claude -n yyyymmdd-coordinator
+2. Start the coordinator CLI you chose (a name is optional), for example:
+   - Claude Code: claude -n yyyymmdd-coordinator   (or: claude)
+   - Codex:       codex
+   - agy:         agy
 3. Paste the coordinator prompt below, filling in <project description>.
 ```
 
@@ -54,19 +58,88 @@ Key folders and documents:
 What to do first:
 ```
 
-## New project
+## What you do afterwards
 
-1. Start the coordinator above. It clones or updates the release at `~/.agent-co-work`, reads the install skill, and probes the available CLIs and models.
-2. Review its recommended seats, including `discussion`. Choose **keep all defaults** or **adjust seats**. For each adjusted seat, choose its default or type `agent model effort [life]` from the listed valid values. The coordinator warns about missing CLIs and offers single-CLI setups.
-3. Confirm the complete table and installation plan, including the kit SHA and files to create or append. The coordinator applies exactly that plan and checks the installed version with lint.
-4. Installation adds the collaboration files, skills and instruction pointers; a fresh install also adds the five collaboration/output ignores. Existing project text outside the marked instruction block is preserved. Give the coordinator your project description, discuss Direction and Plan, and approve the first task when ready.
+- **Confirm seats and the install plan (new project):** Review the coordinator's recommended seats (including `discussion`), built from your installed CLIs. Choose **keep all defaults** or **adjust seats** (for each adjusted seat, pick its default or type `agent model effort [life]` from the listed valid values). Then confirm the complete seat table, file plan, and kit SHA before the coordinator applies it, and check the installed SHA against the plan.
+- **Upgrade an existing project:** Tell the project's coordinator to **upgrade**, review the upgrade plan and kit SHA it shows, confirm before it applies, and check that the installed SHA matches the confirmed plan.
+- **Ask for a discussion seat:** Ask the coordinator to open a discussion (name an agent if you prefer), switch to the Herdr tab it gives you, and discuss directly there. Ask explicitly if you want it to edit project files, and let it know when you end the discussion so it reports conclusions and open questions back to the coordinator.
+- **Approve Briefs and decisions:** Give the coordinator your project description, discuss Direction and Plan, approve each task's Brief before launch, decide hard questions when escalated, and review the coordinator's short conclusion-first Wrap-up summaries to agree on next steps.
 
-## Upgrade
+## Seat setups
 
-1. Tell the existing project's coordinator to upgrade. It runs `cowork/cw upgrade`, which checks the release clone, pulls with `--ff-only`, and shows its upgrade plan and SHA.
-2. Review and confirm the plan. The coordinator runs `cowork/cw upgrade --apply`, which applies the current clone **without another pull**, then runs the newly installed lint. Keep the shared clone unchanged between review and apply; if another project changes it, review a new plan.
-3. Check the installed SHA against the confirmed plan. Upgrade refreshes the CLI, bundled templates, copied skills, version stamp and marked `AGENTS.md` block. It preserves seats, task records, the coordinator address, `.gitignore`, and project text outside that block.
-4. Missing kit files, a non-root/non-Git kit directory, a development checkout, any dirty or untracked kit file, an incomplete project installation, or a failed pull stop the upgrade. If the old CLI lacks `upgrade`, the coordinator uses the legacy commands below once, then uses the short command thereafter.
+Any seat can run any supported CLI (`claude`, `codex`, or `agy`); single-CLI setups work with Claude, Codex, or agy, and the coordinator proposes a table using only what you have installed. Each cell lists `agent model effort life`.
+
+| seat | Claude only | Codex only | Claude + Codex | Claude + agy + Codex (shipped default) |
+|---|---|---|---|---|
+| `coordinator` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` |
+| `coordinator-alt` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `claude claude-opus-5-5 high long` | `agy gemini-4-neon-xhigh xhigh long` |
+| `advisor` | `claude claude-opus-5-5 high short` | `codex gpt-6-astra high short` | `claude claude-opus-5-5 high short` | `agy gemini-4-neon-xhigh xhigh short` |
+| `worker-heavy` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
+| `worker-light` | `claude claude-opus-5-5 high long` | `codex gpt-6.1-sol max long` | `codex gpt-6.1-sol max long` | `codex gpt-6.1-sol max long` |
+| `auditor` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
+| `discussion` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` |
+
+> **Note:** A `codex` or `agy` coordinator runs `hc` and `git` outside its sandbox, so approve those prompts when it asks.
+
+## How it works
+
+<details>
+<summary>Concepts, workflow diagram, and default project layout</summary>
+
+### Concepts
+
+- **Project**: a long effort in `cowork/projects/<name>.md` (`status: active|closed`, with `Direction`, `Plan`, `Resources`, `Decisions`), owned by the coordinator. Standalone tasks work without a project.
+- **Task (`kind: task`)**: a unit ending in a user decision, running on the `main` or `side` line (or `-`). Every task needs user approval before launch, and multiple approved tasks can run in parallel.
+- **Step (`kind: step`)**: work inside a task (review, implementation, audit, fix, check), tracked in the task's `State` or in a separate step file with `parent: <task>`. Coordinator sessions use `kind: seat`.
+- **Seats**: named roles in `cowork/seats.tsv` (`coordinator`, `coordinator-alt`, `advisor`, `worker-heavy`, `worker-light`, `auditor`, `discussion`) mapping each role to a supported agent CLI, model, effort, lifetime (`short` child terminal vs `long` parentless terminal), and optional quoted extra CLI `args`.
+- **`cowork/` files**: `cowork/cw` (vendored standalone CLI), `kit-version` (installed kit commit and origin), `seats.tsv` (seat table), `coordinator.addr` (active coordinator terminal ID), `README.md` (generated overview), `projects/<name>.md`, daily task records `yyyymmdd/<task>.md` whose paths never move, `locks/<resource>`, and `lessons/`.
+
+### How it runs
+
+```mermaid
+flowchart TD
+  D["Agree Direction"] --> P["Coordinator drafts Plan / Brief; advisor reviews as needed"]
+  P --> U["User approves task"]
+  U --> W["Worker executes; scope separation first, worktree if edits overlap"]
+  W --> R["Report with evidence; coordinator chooses review tier"]
+  W -.->|"hard question"| Q["User decision"]
+  Q -.-> W
+  R --> L["Records / docs: coordinator checks"]
+  R --> O["Ordinary code: worker tests + diff review"]
+  R --> A["Critical paths: fresh auditor runs checks"]
+  R --> G["Compute arms: pre-launch review + worker early gate"]
+  L --> K["Coordinator accepts; explicit-path commit if needed"]
+  O --> K
+  A --> K
+  G --> K
+  K --> S["Short Wrap-up summary; user decision; adjust Plan"]
+  S --> P
+```
+
+`cw start` enforces the task/parent approval gate; `cw new --worktree` creates `.worktrees/<task>` and a task branch, with records kept in the main checkout through `COWORK_ROOT`; see the skill's [review and Git rules](skills/cowork/SKILL.md#escalation-and-review).
+
+### Default project layout
+
+Projects can declare a "where things go" override in `AGENTS.md`; installation does not relocate existing files. Ignored evidence is local and needs the project's own backup policy.
+
+| Path | Contents | Fresh-install tracking | Durable evidence |
+|---|---|---|---|
+| `docs/` | Living guides, designs, accepted conclusions | Tracked | Yes |
+| `docs/archive/` | Dated rollups of superseded prose | Tracked | Yes |
+| `cowork/` | Daily records, projects, seats, locks, lessons | Ignored | Yes, local records |
+| `output/<yyyymmdd>/<task>/` | Results, audit findings, logs, rolled-up `log.md` | Ignored | Yes; protect cited paths |
+| `.scratch/` | Host-local operational receipts and scheduler files | Ignored | Operational receipts only |
+| `.tmp/` | Disposable clones, sandboxes, probes | Ignored | No; export needed evidence first |
+| `.worktrees/` | Optional isolated checkouts | Ignored | No; retire after merge/closure |
+
+See [consolidation](skills/cowork-consolidate/SKILL.md) for each class's lifecycle, length guideline, and archive destination.
+
+</details>
+
+## Reference for agents
+
+<details>
+<summary>Coordinator commands, installation and upgrade details, seat flags, discussion mechanics, locks, records, handover, offline mode, troubleshooting, CLI reference, and known limits</summary>
 
 ### What the coordinator runs
 
@@ -95,112 +168,58 @@ cowork/cw lint
 
 `upgrade --kit <dir>` selects another release clone (default `~/.agent-co-work`); use the same option for plan and apply. `--seat` accepts exactly four fields after `=`. Configure optional `args` afterward with `cw seat set --args='...'`; never set `-a never` seat-wide.
 
-## Concepts
+### Installation details
 
-- **Project**: a long effort in `cowork/projects/<name>.md` (`status: active|closed`, with `Direction`, `Plan`, `Resources`, `Decisions`), owned by the coordinator. Standalone tasks work without a project.
-- **Task (`kind: task`)**: a unit ending in a user decision, running on the `main` or `side` line (or `-`). Every task needs user approval before launch, and multiple approved tasks can run in parallel.
-- **Step (`kind: step`)**: work inside a task (review, implementation, audit, fix, check), tracked in the task's `State` or in a separate step file with `parent: <task>`. Coordinator sessions use `kind: seat`.
-- **Seats**: named roles in `cowork/seats.tsv` (`coordinator`, `coordinator-alt`, `advisor`, `worker-heavy`, `worker-light`, `auditor`, `discussion`) mapping each role to a supported agent CLI, model, effort, lifetime (`short` child terminal vs `long` parentless terminal), and optional quoted extra CLI `args`.
-- **`cowork/` files**: `cowork/cw` (vendored standalone CLI), `kit-version` (installed kit commit and origin), `seats.tsv` (seat table), `coordinator.addr` (active coordinator terminal ID), `README.md` (generated overview), `projects/<name>.md`, daily task records `yyyymmdd/<task>.md` whose paths never move, `locks/<resource>`, and `lessons/`.
+The release clone at `~/.agent-co-work` is shared by all target projects. For a new project, the coordinator clones or updates the release at `~/.agent-co-work`, reads `cowork-init`, probes available CLIs and models, installs through `python3 ~/.agent-co-work/bin/cw`, and checks the installed version with `cowork/cw lint`. Upgrades run through `cowork/cw upgrade`, which invokes the release clone's current CLI and assets.
 
-## Requirements
+**Seats:** choose the CLI(s) you have installed from [Choosing seats](#choosing-seats) and [Seat setups](#seat-setups), including single-CLI examples. Before a fresh install, pass `--seat <seat>=<agent>:<model>:<effort>:<life>` to `init` (repeatable) to override defaults, review the revised plan, then rerun that exact command with `--apply`. Run `cowork/cw seats` to inspect the installed table.
+
+**Kit version:** the plan shows `kit: to <sha>` on a fresh install or `kit: from <old|unknown> to <sha>` for a changed upgrade. A fresh install or upgrade writes `cowork/kit-version` as one line containing the clone's full HEAD commit and origin URL (HTTPS credentials are removed). `cowork/cw lint` prints the installed version; compare it with the plan. It prints `Caps OK.` only with no warnings/errors, or `Validation OK; <n> over guideline.` for advisory length/duplicate warnings. An unchanged version prints no version-change line. Plain `init` preserves an older project's version, including a missing stamp; use `--upgrade` to record the installed release. `init` keeps these kit checks warn-only; `upgrade` refuses dirty or development clones.
+
+**What `init` touches:** creates `cowork/cw`, `cowork/kit-version` (fresh install only), `cowork/seats.tsv`, `cowork/coordinator.addr`, `cowork/<today>/coordinator.md`, `cowork/README.md`, and `cowork/lessons/README.md`; copies the four skills (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`) into `.claude/skills/` and `.agents/skills/`; on fresh installation appends missing `cowork/`, `output/`, `.scratch/`, `.tmp/`, and `.worktrees/` entries to `.gitignore` (listed in the plan), appends a marked block to `AGENTS.md`, and adds `@AGENTS.md` to `CLAUDE.md` if absent. After installation, plain init and `--upgrade` preserve `.gitignore` byte-for-byte and print a note if default entries are missing. Plain init preserves other existing content (including project text outside the marked instruction block), and rerunning an up-to-date installation prints `nothing to do`. `python3 ~/.agent-co-work/bin/cw init --upgrade` (then `--upgrade --apply`) refreshes only `cowork/cw`, `cowork/kit-version`, the copied skills, and the marked `AGENTS.md` block.
+
+**Projects with a server:** if the project runs jobs on a server, the optional step in `cowork-init` asks for every placeholder in [templates/server.md](templates/server.md), prepares the filled rules for user confirmation, and saves them to `docs/server.md` (or the project's declared documentation path). It never overwrites an existing server guide and adds a pointer in `AGENTS.md` outside the marked block. Hardware stays unverified until probed outside the sandbox.
+
+#### Runtime requirements
 
 - **Host OS (macOS / Linux / POSIX)**: `bin/cw` unconditionally imports `fcntl` and serializes resource locks with `fcntl.flock`; native Windows Python is not supported.
 - **Python 3.9+**: standard library only; `bin/cw` has no third-party dependencies.
 - **Herdr (`hc`, tested with 0.1.22)**: required for live launches, approvals, status, reports, and handover; optional for offline record management and command previews.
-- **Agent CLIs (`claude`, `codex`, `agy`)**: install only the CLI(s) assigned in your `cowork/seats.tsv` or per-task overrides. None is required individually—a Claude-only setup needs only `claude` on `PATH`.
+- **Agent CLIs (`claude`, `codex`, `agy`)**: install only the CLI(s) assigned in your `cowork/seats.tsv` or per-task overrides. None is required individually—a Claude-only setup needs only `claude` on `PATH` (and a Codex-only setup needs only `codex`).
 - **`git`**: required to clone and update the GitHub release, identify its version, and create isolated checkouts with `cw new --worktree`. Installed record commands work without it.
 
-## Installation details
+#### Upgrade details
 
-The release clone at `~/.agent-co-work` is shared by all target projects. The coordinator installs through `python3 ~/.agent-co-work/bin/cw` and upgrades through `cowork/cw upgrade`, which invokes the release clone's current CLI and assets.
+- `cowork/cw upgrade` checks the release clone, pulls with `--ff-only`, and shows its upgrade plan and SHA.
+- After user confirmation, the coordinator runs `cowork/cw upgrade --apply`, which applies the current clone **without another pull**, then runs the newly installed lint. Keep the shared clone unchanged between review and apply; if another project changes it, review a new plan.
+- Compare the installed SHA against the confirmed plan. Upgrade refreshes the CLI, bundled templates, copied skills, version stamp, and marked `AGENTS.md` block. It preserves seats, task records, the coordinator address, `.gitignore`, and project text outside that block.
+- Missing kit files, a non-root/non-Git kit directory, a development checkout, any dirty or untracked kit file, an incomplete project installation, or a failed pull stop the upgrade. If the old CLI lacks `upgrade`, the coordinator uses the legacy commands above once, then uses the short command thereafter.
 
-**Seats:** choose the CLI(s) you have installed from [Choosing seats](#choosing-seats), including the single-CLI example. Before a fresh install, pass `--seat <seat>=<agent>:<model>:<effort>:<life>` to `init` (repeatable) to override defaults, review the revised plan, then rerun that exact command with `--apply`. Run `cowork/cw seats` to inspect the installed table.
-
-**Kit version:** the plan shows `kit: to <sha>` on a fresh install or `kit: from <old|unknown> to <sha>` for a changed upgrade. A fresh install or upgrade writes `cowork/kit-version` as one line containing the clone's full HEAD commit and origin URL (HTTPS credentials are removed). `cowork/cw lint` prints the installed version; compare it with the plan. It prints `Caps OK.` only with no warnings/errors, or `Validation OK; <n> over guideline.` for advisory length/duplicate warnings. An unchanged version prints no version-change line. Plain `init` preserves an older project's version, including a missing stamp; use `--upgrade` to record the installed release. `init` keeps these kit checks warn-only; `upgrade` refuses dirty or development clones.
-
-**What `init` touches:** creates `cowork/cw`, `cowork/kit-version` (fresh install only), `cowork/seats.tsv`, `cowork/coordinator.addr`, `cowork/<today>/coordinator.md`, `cowork/README.md`, and `cowork/lessons/README.md`; copies the four skills (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`) into `.claude/skills/` and `.agents/skills/`; on fresh installation appends missing `cowork/`, `output/`, `.scratch/`, `.tmp/`, and `.worktrees/` entries to `.gitignore` (listed in the plan), appends a marked block to `AGENTS.md`, and adds `@AGENTS.md` to `CLAUDE.md` if absent. After installation, plain init and `--upgrade` preserve `.gitignore` byte-for-byte and print a note if default entries are missing. Plain init preserves other existing content, and rerunning an up-to-date installation prints `nothing to do`. `python3 ~/.agent-co-work/bin/cw init --upgrade` (then `--upgrade --apply`) refreshes only `cowork/cw`, `cowork/kit-version`, the copied skills, and the marked `AGENTS.md` block.
-
-**Projects with a server:** if the project runs jobs on a server, the optional step in `cowork-init` asks for every placeholder in [templates/server.md](templates/server.md), prepares the filled rules for user confirmation, and saves them to `docs/server.md` (or the project's declared documentation path). It never overwrites an existing server guide and adds a pointer in `AGENTS.md` outside the marked block. Hardware stays unverified until probed outside the sandbox.
-
-### Using the Herdr app
+#### Using the Herdr app
 
 Open Herdr and use `+` in the tab bar for a terminal in the project folder. Start your coordinator CLI there and paste the [coordinator prompt](#coordinator-prompt).
 
 When launching seats, `cowork/cw start` passes the caller's `herdr.space=<id>` label to `hc run` without `herdr.tab`, requesting a new tab in the same space. Long seats use `--no-parent`; short seats use `--parent <caller t-id>`.
 
-## Choosing seats
+### Choosing seats
 
-The default three-agent table in `templates/seats.tsv` is only an example. Any seat may use any supported adapter (`claude`, `codex`, `agy`) and any model/effort accepted by that CLI. An optional quoted sixth column `args` (`-` or absent means none) supplies extra adapter CLI options, split with shell-style quoting (inner quotes preserve spaces, no shell expansion) and appended verbatim to the adapter argv.
+The default three-agent table in `templates/seats.tsv` is only an example (see [Seat setups](#seat-setups) for single- and multi-CLI presets). Any seat may use any supported adapter (`claude`, `codex`, `agy`) and any model/effort accepted by that CLI. An optional quoted sixth column `args` (`-` or absent means none) supplies extra adapter CLI options, split with shell-style quoting (inner quotes preserve spaces, no shell expansion) and appended verbatim to the adapter argv.
 
-The coordinator first detects installed CLIs and models outside the sandbox (`command -v claude codex agy`, `agy models`, `codex debug models`, Claude aliases), then proposes a table using only those installed. Choose keep defaults / adjust seats; each adjustment offers its default / type your own `agent model effort [life]`. Claude coordinators use their question tool (up to four questions per call); others ask in chat. Confirm the final table before apply. Single-CLI setups work with Claude, Codex or agy.
+The coordinator first detects installed CLIs and models outside the sandbox (`command -v claude codex agy`, `agy models`, `codex debug models`, Claude aliases), then proposes a table using only those installed (including `discussion`), warning about missing CLIs and offering single-CLI setups. Choose keep defaults / adjust seats; each adjustment offers its default / type your own `agent model effort [life]`. Claude coordinators use their question tool (up to four questions per call); others ask in chat. Confirm the final table before apply. Single-CLI setups work with Claude, Codex or agy.
 
 Claude efforts are `low`, `medium`, `high`, `xhigh`, `max`; agy lists the same levels and embeds effort in model names (e.g. `gemini-4-neon-xhigh`), so keep the pair aligned. Codex efforts are model-dependent: use the local model listing. Do not select `ultra` (automatic sub-agent delegation); unlisted values remain unverified. These are discovery guidelines, not hard-coded CLI validation.
 
 Existing projects keep legacy `coder-heavy` / `coder-light` rows and records; upgrade never migrates their seats. A missing template-default seat falls back to its bundled row, and `cw seat set` can append it when customizing an older project.
 
-Each cell lists `agent model effort life`; optional `args` are described above.
-
-| seat | Claude Code only | Claude Code + Codex | Claude Code + agy + Codex (shipped default) |
-|---|---|---|---|
-| `coordinator` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` |
-| `coordinator-alt` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `agy gemini-4-neon-xhigh xhigh long` |
-| `advisor` | `claude claude-opus-5-5 high short` | `claude claude-opus-5-5 high short` | `agy gemini-4-neon-xhigh xhigh short` |
-| `worker-heavy` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
-| `worker-light` | `claude claude-opus-5-5 high long` | `codex gpt-6.1-sol max long` | `codex gpt-6.1-sol max long` |
-| `auditor` | `claude claude-opus-5-5 high long` | `codex gpt-6-astra high long` | `codex gpt-6-astra high long` |
-| `discussion` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` | `claude claude-opus-5-5 high long` |
-
 - **Change a seat default**: during init pass `--seat <seat>=<agent>:<model>:<effort>:<life>` (configure `args` afterward); afterward run `cowork/cw seat set [--args='...'] <seat> <agent> <model> <effort> [short|long]` (updates `cowork/seats.tsv`, keeps comments, and appends a `State` line to the caller's record). `--args='...'` replaces extra adapter options (e.g. `--args='--sandbox workspace-write'` or `'--config "label=two words"'`), omitting `--args` preserves existing `args`, and `--args=-` clears them; clear or replace incompatible options when switching adapters.
 - **Name an agent for one task**: pass `--agent <agent>:<model>:<effort>[:<life>]` to `cowork/cw new`, or run `cowork/cw set <taskfile> agent=<agent>:<model>:<effort>[:<life>]` (`agent=-` restores the seat default). Omitted `life` inherits the seat, and task overrides retain the seat's `args` (so switching adapters on a seat with adapter-specific `args` requires clearing or updating those `args` first); the seat keeps its role and naming rules.
-
 - **Extra arguments for one task**: `cw new ... --args='-a never'` or `cw set <taskfile> 'args=-a never'` appends task options after seat options for every adapter. `args=-` clears only the task options; legacy headers without `args:` mean none. Values use shell-style quoting without shell expansion; `args: --label "run # 1" # comment` preserves the quoted hash. Keep unattended-run options on the task that needs them.
 
-## Discussion seats
+### Discussion seats
 
-Ask the coordinator to open a discussion (name an agent if you prefer). It prepares a standalone step with a Goal and context files, starts the seat and tells you the tab name. The seat greets you and waits; discuss directly in that tab. It edits project files only when you explicitly ask, never stages or commits, and reports conclusions/open questions when you end the discussion. The coordinator reads the summary, records decisions and closes the record.
+When the user asks for a discussion (optionally naming an agent), the coordinator prepares a standalone step with a Goal and context files, starts the seat, and gives the user the tab name. The seat greets the user and waits; the user discusses directly in that tab. It edits project files only when the user explicitly asks, never stages or commits, and reports conclusions/open questions when the user ends the discussion. The coordinator reads the summary, records decisions, and closes the record.
 
-## Default project layout
-
-Projects can declare a "where things go" override in `AGENTS.md`; installation does not relocate existing files. Ignored evidence is local and needs the project's own backup policy.
-
-| Path | Contents | Fresh-install tracking | Durable evidence |
-|---|---|---|---|
-| `docs/` | Living guides, designs, accepted conclusions | Tracked | Yes |
-| `docs/archive/` | Dated rollups of superseded prose | Tracked | Yes |
-| `cowork/` | Daily records, projects, seats, locks, lessons | Ignored | Yes, local records |
-| `output/<yyyymmdd>/<task>/` | Results, audit findings, logs, rolled-up `log.md` | Ignored | Yes; protect cited paths |
-| `.scratch/` | Host-local operational receipts and scheduler files | Ignored | Operational receipts only |
-| `.tmp/` | Disposable clones, sandboxes, probes | Ignored | No; export needed evidence first |
-| `.worktrees/` | Optional isolated checkouts | Ignored | No; retire after merge/closure |
-
-See [consolidation](skills/cowork-consolidate/SKILL.md) for each class's lifecycle, length guideline, and archive destination.
-
-## How it runs
-
-```mermaid
-flowchart TD
-  D["Agree Direction"] --> P["Coordinator drafts Plan / Brief; advisor reviews as needed"]
-  P --> U["User approves task"]
-  U --> W["Worker executes; scope separation first, worktree if edits overlap"]
-  W --> R["Report with evidence; coordinator chooses review tier"]
-  W -.->|"hard question"| Q["User decision"]
-  Q -.-> W
-  R --> L["Records / docs: coordinator checks"]
-  R --> O["Ordinary code: worker tests + diff review"]
-  R --> A["Critical paths: fresh auditor runs checks"]
-  R --> G["Compute arms: pre-launch review + worker early gate"]
-  L --> K["Coordinator accepts; explicit-path commit if needed"]
-  O --> K
-  A --> K
-  G --> K
-  K --> S["Short Wrap-up summary; user decision; adjust Plan"]
-  S --> P
-```
-
-`cw start` enforces the task/parent approval gate; `cw new --worktree` creates `.worktrees/<task>` and a task branch, with records kept in the main checkout through `COWORK_ROOT`; see the skill's [review and Git rules](skills/cowork/SKILL.md#escalation-and-review).
-
-## Resources and locks
+### Resources and locks
 
 - **Advisory estimate**: `cowork/cw lock expect <resource> <time>` notifies the successor and coordinator and writes no `State` line.
 - **Release and stale recovery**: the holder calls `cowork/cw lock release <resource> [--evidence <path>] [--note <text>]`, freeing the lock before sending notifications, preserving the queue head, and adding one `State` line. `cowork/cw status` flags closed, missing, or exited holders with `! stale holder` (never auto-released); only a coordinator seat may recover one with `--force --holder <yyyymmdd/task>`. The expected holder is validated and compared under the lock; missing, malformed, or mismatched holders exit 1 without changing the lock.
@@ -208,7 +227,7 @@ flowchart TD
 
 Lock commands return 1 for a pre-mutation error and 3 for a mutation followed by a notification or receipt-write failure (including `expect`). After 3 or an ambiguous error, inspect `cw status` and the holder/since fields before retrying. `--holder` protects a different task's acquisition, but cannot distinguish a later acquisition by the same task. See the [resource rules](skills/cowork/SKILL.md#resources).
 
-## Records, Wrap-up, and lessons
+### Records, Wrap-up, and lessons
 
 The [record rules](skills/cowork/SKILL.md#records-and-messages) specify ownership and immutable evidence; [cowork-consolidate](skills/cowork-consolidate/SKILL.md) covers rolling State, Decisions/Plan, lessons, overview/handover, archives, outputs/scratch, and memory.
 
@@ -221,31 +240,29 @@ The [record rules](skills/cowork/SKILL.md#records-and-messages) specify ownershi
 
 Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` remain readable. Use `cw set` to update frontmatter.
 
-## Coordinator handover
+### Coordinator handover
 
 - Run `cowork/cw handover context` to launch a fresh `coordinator`, `cowork/cw handover tokens` to switch to `coordinator-alt` (or back), or `cowork/cw handover --accept` to accept; see the [handover rules](skills/cowork/SKILL.md#size-limits-consolidation-and-handover).
 - `--accept` writes the successor's terminal ID to `cowork/coordinator.addr`, sends acceptance to the previous coordinator, and logs delivery in its own `State`; the outgoing `cw handover` polls `coordinator.addr` to confirm takeover.
 
-## Without Herdr
+### Without Herdr
 
 - Without `HC_TERMINAL_ID`, `cw init --apply` sets `cowork/coordinator.addr` to `- -`; record commands (`project new`, `new`, `set`, `seat set`, `index`, `lessons`, `lint`, and lock state changes) work offline.
 - `cowork/cw start <taskfile>` (or `--print` anytime) prints the exact `hc` launch commands without launching or editing records; `cowork/cw check <taskfile>` prints the `hc get` command plus the last 3 `State` lines.
 - `cowork/cw status` lists active assigned terminals plus any task with unresolved report receipts, reporting `Herdr unavailable` while still flagging `BLOCKED:` in their `State`, plus closed or missing stale lock holders.
 - `cowork/cw report` appends `REPORT (undelivered): ...` to `State`, prints a `Relay to coordinator:` line for manual relay, and exits 1; `cowork/cw handover` requires `HC_TERMINAL_ID`.
 
-## Troubleshooting
+### Troubleshooting
 
 - **Wrong terminal identity after resuming Claude Code**: a resumed session may run tools with another session's `HC_TERMINAL_ID`. Check `echo $HC_TERMINAL_ID` against `cowork/coordinator.addr`; if you are the recorded coordinator, pin the correct value, for example `HC_TERMINAL_ID=t22 cowork/cw start <taskfile>`. Callers without `COWORK_TASK` are checked before `start`, `lock next`, coordinator `lock take` / `release --force`, `handover context|tokens`, and `seat set`. Seat callers, `handover --accept`, `report`, and operation without Herdr are unaffected.
-
 - **Trust and permission prompts**: `cw start` and `cw handover` invoke `cw approve` only for (a) a folder-trust prompt matching the exact project root (or the task’s assigned worktree during `cw start`), or (b) an `agy` permission prompt for a plain `cowork/cw ...` command (choosing "always allow in this conversation"). Standalone `cw approve` stays root-only; sibling folders are not allowed. Any other or repeated unmatched prompt exits 2 with the screen tail without pressing keys; inspect with `hc read <t> --lines 0` and answer manually, or run `cowork/cw approve <t>` on a recognized prompt.
 - **Codex start exits with an account error**: if Codex (or another agent) exits early while its task is known to be undelivered (for example, an account or routing error on startup), `cw start` reads and prints the screen tail, removes that failed terminal record, and relaunches once with the same name under the original 120 s startup deadline. A second early exit (or cleanup failure) prints the screen tail and stops without updating the task header; inspect the printed tail (and `hc read <name> --lines 0` if the second terminal remains), check Codex login/account status, and rerun `cowork/cw start <taskfile>`. Delivered or ambiguous task deliveries are never relaunched, and `cw handover` does not auto-relaunch.
 - **Nested projects asking about external `CLAUDE.md` imports**: `cw init` adds `@AGENTS.md` to `CLAUDE.md`. In a nested project where Claude Code asks whether to allow external `CLAUDE.md` imports, `cw approve` intentionally refuses to press keys (exits 2 with the screen tail) because it is not a recognized root folder-trust prompt; confirm or decline the dialog manually in Herdr.
 - **agy status lag**: Herdr can report `agy` as `done` before generation finishes. Wait for the seat's `cw report` message rather than terminal status alone, and check progress with `cowork/cw check <taskfile>`.
 
-## Command reference
+### Command reference
 
-<details>
-<summary>All <code>cw</code> commands (global flag: <code>--root &lt;dir&gt;</code>)</summary>
+All `cw` commands (global flag: `--root <dir>`):
 
 | Command | Purpose |
 |---|---|
@@ -270,9 +287,7 @@ Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` re
 | `cw lessons [yyyymmdd]` | Collect Wrap-up/Debrief `- lesson:` lines into `cowork/lessons/<date>.md` |
 | `cw lint` | Print installed `cowork/kit-version`; validate project/task/seat structure; warn about length guidelines and duplicates |
 
-</details>
-
-## Known limits
+### Known limits
 
 - **Fixed adapter set**: built-in launch and approval adapters support `claude`, `codex`, and `agy`; unknown agents error.
 - **Narrow auto-approval**: only recognized prompts are automated; see [Troubleshooting](#troubleshooting).
@@ -281,7 +296,14 @@ Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` re
 - **Naming and visibility caps**: names are 1–20 chars (`[a-z0-9]([a-z0-9-]{0,18}[a-z0-9])?`), collision suffixes stop at `-9`, and callers without a `herdr.space` label launch hidden terminals with a warning.
 - **Unit test scope**: `tests/` uses isolated fake `hc`/`git` binaries, local Git clone fixtures, captured prompt screens, and real competing lock processes; live multi-agent handover is not automated in the suite.
 
-## Development
+</details>
+
+## Maintainers
+
+<details>
+<summary>Repository layout, checks, and maintainer releases</summary>
+
+### Development
 
 - **Layout**: `bin/cw` (single stdlib Python 3 script), `skills/` (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`), `templates/`, and `tests/`.
 - **Single source of rules**: collaboration rules live only in [skills/cowork/SKILL.md](skills/cowork/SKILL.md) (guideline 150 lines); the other three skills link to it without restating rules.
@@ -290,3 +312,5 @@ Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` re
 ### Maintainer releases
 
 SSH is only needed by maintainers who choose it for publishing (for example `git@github.com:YitaoXU/agent-co-work.git`). Existing SSH clones still work; the version stamp records their actual origin. Users install the public release over HTTPS.
+
+</details>
