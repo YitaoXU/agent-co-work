@@ -6,6 +6,57 @@
 你与协调员商定方向、批准每个任务、裁决重大问题，并与顾问及协调员共同复盘结果。
 任意席位都可运行任意受支持的 agent CLI（`claude`、`codex`、`agy`）；三 agent 配置仅作示例，权威协作规则以 [cowork 技能](skills/cowork/SKILL.md#task-loop) 为准。
 
+## 快速开始
+
+前提：macOS/Linux、Python 3.9+、已配置 GitHub SSH 访问的 `git`、Herdr 应用与 `hc` 0.1.22+，以及 `claude`、`codex`、`agy` 中至少一个 CLI（见[环境要求](#环境要求)与[使用 Herdr 应用](#使用-herdr-应用)）。
+
+1. **每台机器只需一次**，将发布仓库克隆到固定位置：
+
+   ```sh
+   git clone git@github.com:YitaoXU/agent-co-work.git ~/.agent-co-work
+   ```
+
+2. **新项目**：在 Herdr 应用标签页中打开项目根目录，在该标签页启动协调员（例如 `claude -n yyyymmdd-coordinator`），粘贴下方的[协调员提示词](#协调员提示词)。若要手动安装，在同一标签页的项目根目录运行：
+
+   ```sh
+   git -C ~/.agent-co-work pull --ff-only
+   python3 ~/.agent-co-work/bin/cw init
+   ```
+
+   检查席位表、文件计划和 kit 版本，确认后执行：
+
+   ```sh
+   python3 ~/.agent-co-work/bin/cw init --apply
+   cowork/cw lint
+   ```
+
+3. **升级**：在已有项目的协调员 Herdr 标签页中，从项目根目录更新发布仓库并查看升级计划：
+
+   ```sh
+   git -C ~/.agent-co-work pull --ff-only
+   python3 ~/.agent-co-work/bin/cw init --upgrade
+   ```
+
+   确认计划后执行：
+
+   ```sh
+   python3 ~/.agent-co-work/bin/cw init --upgrade --apply
+   cowork/cw lint
+   ```
+
+### 协调员提示词
+
+```text
+请在当前项目中安装或升级 agent-co-work。如果 ~/.agent-co-work 不存在，
+将 git@github.com:YitaoXU/agent-co-work.git 克隆到 ~/.agent-co-work；
+否则运行 git -C ~/.agent-co-work pull --ff-only。
+阅读 ~/.agent-co-work/skills/cowork-init/SKILL.md。
+首次安装使用 python3 ~/.agent-co-work/bin/cw init；
+已有安装使用 python3 ~/.agent-co-work/bin/cw init --upgrade。
+向我展示席位表、文件计划和 kit 版本，仅在我确认后，在同一条命令中追加
+--apply 执行，然后运行 cowork/cw lint。
+```
+
 ## 核心概念
 
 - **项目（Project）**：记录在 `cowork/projects/<name>.md` 中的长期工作（`status: active|closed`，包含 `Direction`、`Plan`、`Resources`、`Decisions`），由协调员维护。独立任务可不关联项目。
@@ -22,48 +73,22 @@
 - **Agent CLI（`claude`、`codex`、`agy`）**：只需安装 `cowork/seats.tsv` 或单任务覆盖配置中实际用到的 CLI，不要求全部安装——纯 Claude 配置只需 `PATH` 中有 `claude`。
 - **`git`**：用于克隆和更新 GitHub 发布仓库、识别发布版本，以及通过 `cw new --worktree` 创建隔离工作树。安装后的记录管理命令无需 Git。
 
-## 从 GitHub 安装和升级
+## 安装细节
 
-每台机器保留一份固定的 GitHub 发布仓库 clone，供所有目标项目共用。将 `<repo-url>` 替换为 GitHub 发布仓库 URL，将 `<kit-clone>` 替换为固定目录，例如 `$HOME/.agent-co-work`。私有仓库需要先配置 SSH 访问权限。开发仓库不用于部署。
+固定在 `~/.agent-co-work` 的发布 clone 供所有目标项目共用。安装与升级均通过 `python3 ~/.agent-co-work/bin/cw` 执行，以使用发布版本的最新技能和模板。
 
-```sh
-git clone <repo-url> <kit-clone>
-```
+**席位**：根据已安装的 CLI 查看[选择席位](#选择席位)，其中包含单 CLI 示例。首次安装前，可向 `init` 传入 `--seat <seat>=<agent>:<model>:<effort>:<life>`（可重复指定）覆盖默认席位；检查新计划后，在完全相同的命令中追加 `--apply`。使用 `cowork/cw seats` 查看已安装的席位表。
 
-在各目标项目的根目录中更新这份发布 clone，并查看安装计划：
+**Kit 版本**：首次安装的计划显示 `kit: to <sha>`，版本有变化的升级显示 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出已安装版本和 `Caps OK.`，供你与计划核对。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。部署前检查有关 kit 文件未提交改动或使用开发仓库的告警。
 
-```sh
-git -C <kit-clone> pull --ff-only
-python3 <kit-clone>/bin/cw init
-```
-
-确认席位表、文件计划及输出的 `kit: to <sha>` 版本后，在同一条 init 命令中追加 `--apply`（见“首次部署”）。升级已有项目时，在其根目录运行：
-
-```sh
-git -C <kit-clone> pull --ff-only
-python3 <kit-clone>/bin/cw init --upgrade
-python3 <kit-clone>/bin/cw init --upgrade --apply
-cowork/cw lint
-```
-
-应用升级前检查 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出该已安装版本，供你与计划核对。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。若 kit 文件有未提交改动，或使用了开发仓库，会输出告警，便于部署前检查发布 clone。
-
-## 首次部署
-
-1. 在 Herdr 标签页中打开目标项目目录，确保环境变量 `HC_TERMINAL_ID` 与该标签页的 `herdr.space` 标签已设置。
-2. 在该标签页中启动 Claude Code（或你选定的协调员 CLI）。
-3. 按上节更新固定的 GitHub 发布 clone，然后运行 `cowork-init` 流程——让协调员执行 *"Use agent-co-work from `<kit-clone>` to set up collaboration here"*（或用中文指示使用该 clone 配置协作），也可以在目标项目根目录直接运行 `python3 <kit-clone>/bin/cw init`，在不写入文件的情况下打印默认席位表、kit 版本和文件计划（`create`、`append`、`unchanged`）。
-4. 确认席位表；若要在安装前覆盖默认席位，可传入 `--seat <seat>=<agent>:<model>:<effort>:<life>`（可重复指定）重新检查计划，确认无误后在完全相同的命令上追加 `--apply` 执行。
-5. 运行 `cowork/cw seats` 和 `cowork/cw lint`（输出已安装的 `kit:` 版本和 `Caps OK.`）验证安装，并将 `cowork/kit-version` 与计划核对。
-
-**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将四个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）复制到 `.claude/skills/` 和 `.agents/skills/`；如缺失则向 `.gitignore` 追加 `.worktrees/`、向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。普通 init 保留已有内容，对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 <kit-clone>/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
+**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将四个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）复制到 `.claude/skills/` 和 `.agents/skills/`；如缺失则向 `.gitignore` 追加 `.worktrees/`、向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。普通 init 保留已有内容，对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
 
 ### 使用 Herdr 应用
 
 Herdr 负责显示空间（space）、标签页（tab）和窗格（pane），`herdr-core`（`hc`）负责运行其中的终端并在窗口关闭后保持它们存活（关闭窗格、标签页或空间则会结束其中的终端）。
 
 1. 打开 Herdr 应用，并在应用中为目标项目目录新建空间或标签页（命令面板 `app.palette` 会按名称及快捷键列出包括 `space.new` 和 `tab.new` 在内的所有命令，`app.help` 可开关快捷键对话框；尚未打开任何空间时，新建标签页会自动创建一个空间）。
-2. 在该终端中启动 Claude Code：`claude -n yyyymmdd-coordinator`（或你选定的协调员 CLI），然后从上方第 3 步起继续执行 `cowork-init`。
+2. 在该终端中启动 Claude Code：`claude -n yyyymmdd-coordinator`（或你选定的协调员 CLI），然后粘贴“快速开始”中的[协调员提示词](#协调员提示词)。
 3. 启动其他席位时，`cowork/cw start` 会把调用方的 `herdr.space=<id>` 标签传给 `hc run` 且不设置 `herdr.tab`，因此 Herdr 会在同一个空间中为每个已启动的席位新建一个标签页。
 
 ## 选择席位
@@ -199,7 +224,7 @@ flowchart TD
 
 | 命令 | 用途 |
 |---|---|
-| `python3 <kit-clone>/bin/cw init [--seat seat=agent:model:effort:life] [--upgrade] [--apply]` | 从固定 GitHub 发布 clone 安装或升级；规划版本，并在首次安装或升级时写入 `cowork/kit-version` |
+| `python3 ~/.agent-co-work/bin/cw init [--seat seat=agent:model:effort:life] [--upgrade] [--apply]` | 从固定 GitHub 发布 clone 安装或升级；规划版本，并在首次安装或升级时写入 `cowork/kit-version` |
 | `cw seats` | 打印 `cowork/seats.tsv` |
 | `cw seat set [--args='...'] <seat> <agent> <model> <effort> [life]` | 更新单个席位配置（省略 `--args` 保留原值，`--args=-` 清空）并追加一行 `State` |
 | `cw project new <name>` | 创建 `cowork/projects/<name>.md` |

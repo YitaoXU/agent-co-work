@@ -6,6 +6,57 @@ A portable multi-agent collaboration kit for any project folder on Unix-like hos
 You discuss direction with a coordinator, approve each task, decide hard questions, and review results with an advisor and coordinator.
 Any seat can run any supported agent CLI (`claude`, `codex`, `agy`); the three-agent setup is only an example, and the authoritative rules live in [skill cowork](skills/cowork/SKILL.md#task-loop).
 
+## Quick start
+
+Prerequisites: macOS/Linux, Python 3.9+, `git` with GitHub SSH access, the Herdr app with `hc` 0.1.22+, and at least one of `claude`, `codex`, or `agy` (see [Requirements](#requirements) and [Using the Herdr app](#using-the-herdr-app)).
+
+1. **Once per machine**, clone the release into its fixed location:
+
+   ```sh
+   git clone git@github.com:YitaoXU/agent-co-work.git ~/.agent-co-work
+   ```
+
+2. **New project**: open its root in a Herdr app tab, start your coordinator there (e.g. `claude -n yyyymmdd-coordinator`), and paste the [coordinator prompt](#coordinator-prompt) below. To install by hand, run from the project root in that same tab:
+
+   ```sh
+   git -C ~/.agent-co-work pull --ff-only
+   python3 ~/.agent-co-work/bin/cw init
+   ```
+
+   Review the seat table, file plan and kit version, then apply:
+
+   ```sh
+   python3 ~/.agent-co-work/bin/cw init --apply
+   cowork/cw lint
+   ```
+
+3. **Upgrade**: from the existing project's root in its coordinator's Herdr tab, update the release and inspect the upgrade plan:
+
+   ```sh
+   git -C ~/.agent-co-work pull --ff-only
+   python3 ~/.agent-co-work/bin/cw init --upgrade
+   ```
+
+   Confirm the plan, then apply:
+
+   ```sh
+   python3 ~/.agent-co-work/bin/cw init --upgrade --apply
+   cowork/cw lint
+   ```
+
+### Coordinator prompt
+
+```text
+Set up or upgrade agent-co-work in this project. If ~/.agent-co-work is missing,
+clone git@github.com:YitaoXU/agent-co-work.git into ~/.agent-co-work; otherwise run
+git -C ~/.agent-co-work pull --ff-only. Read
+~/.agent-co-work/skills/cowork-init/SKILL.md. For a fresh installation, run
+python3 ~/.agent-co-work/bin/cw init; for an existing installation, run
+python3 ~/.agent-co-work/bin/cw init --upgrade. Show me the seat table, file plan
+and kit version. Apply the same command with --apply only after my confirmation,
+then run cowork/cw lint.
+```
+
 ## Concepts
 
 - **Project**: a long effort in `cowork/projects/<name>.md` (`status: active|closed`, with `Direction`, `Plan`, `Resources`, `Decisions`), owned by the coordinator. Standalone tasks work without a project.
@@ -22,48 +73,22 @@ Any seat can run any supported agent CLI (`claude`, `codex`, `agy`); the three-a
 - **Agent CLIs (`claude`, `codex`, `agy`)**: install only the CLI(s) assigned in your `cowork/seats.tsv` or per-task overrides. None is required individually—a Claude-only setup needs only `claude` on `PATH`.
 - **`git`**: required to clone and update the GitHub release, identify its version, and create isolated checkouts with `cw new --worktree`. Installed record commands work without it.
 
-## Install and upgrade from GitHub
+## Installation details
 
-Keep one fixed clone of the GitHub release per machine, shared by all target projects. Replace `<repo-url>` with the GitHub release repository URL and `<kit-clone>` with that fixed directory, for example `$HOME/.agent-co-work`. Private repositories require SSH access configured before cloning. The development checkout is not for deployment.
+The release clone at `~/.agent-co-work` is shared by all target projects. Always run installation and upgrade commands through `python3 ~/.agent-co-work/bin/cw`, so they use the release's current skills and templates.
 
-```sh
-git clone <repo-url> <kit-clone>
-```
+**Seats:** choose the CLI(s) you have installed from [Choosing seats](#choosing-seats), including the single-CLI example. Before a fresh install, pass `--seat <seat>=<agent>:<model>:<effort>:<life>` to `init` (repeatable) to override defaults, review the revised plan, then rerun that exact command with `--apply`. Run `cowork/cw seats` to inspect the installed table.
 
-From each target project's root, update that release clone and inspect the installation plan:
+**Kit version:** the plan shows `kit: to <sha>` on a fresh install or `kit: from <old|unknown> to <sha>` for a changed upgrade. A fresh install or upgrade writes `cowork/kit-version` as one line containing the clone's full HEAD commit and origin URL (HTTPS credentials are removed). `cowork/cw lint` prints the installed version and `Caps OK.`; compare the version with the plan. An unchanged version prints no version-change line. Plain `init` preserves an older project's version, including a missing stamp; use `--upgrade` to record the installed release. Check warnings about uncommitted kit changes or a development checkout before deploying.
 
-```sh
-git -C <kit-clone> pull --ff-only
-python3 <kit-clone>/bin/cw init
-```
-
-Confirm the seat table and file plan, including the printed `kit: to <sha>` version, then rerun the init command with `--apply` (see First deployment). To upgrade an existing project, run from its root:
-
-```sh
-git -C <kit-clone> pull --ff-only
-python3 <kit-clone>/bin/cw init --upgrade
-python3 <kit-clone>/bin/cw init --upgrade --apply
-cowork/cw lint
-```
-
-Review `kit: from <old|unknown> to <sha>` before applying an upgrade. A fresh install or upgrade writes `cowork/kit-version` as one line containing the clone's full HEAD commit and origin URL (HTTPS credentials are removed). `cowork/cw lint` prints that installed version; compare it with the plan. An unchanged version prints no version-change line. Plain `init` preserves an older project's version, including a missing stamp; use `--upgrade` to record the installed release. Warnings identify uncommitted kit changes or a development checkout so you can check the release clone before deployment.
-
-## First deployment
-
-1. Open the target project folder in a Herdr tab so `HC_TERMINAL_ID` and the tab's `herdr.space` label are set.
-2. Start Claude Code (or your chosen coordinator CLI) in that tab.
-3. Update the fixed GitHub release clone as above, then run the `cowork-init` flow—tell the coordinator *"Use agent-co-work from `<kit-clone>` to set up collaboration here"*, or run `python3 <kit-clone>/bin/cw init` from the target project root to print the default seat table, kit version and file plan (`create`, `append`, `unchanged`) without writing files.
-4. Confirm the seat table; to override seats before installation, pass `--seat <seat>=<agent>:<model>:<effort>:<life>` (repeatable) and re-check the plan, then rerun that exact command with `--apply`.
-5. Verify the installation with `cowork/cw seats` and `cowork/cw lint` (the installed `kit:` version and `Caps OK.`); check `cowork/kit-version` against the plan.
-
-**What `init` touches:** creates `cowork/cw`, `cowork/kit-version` (fresh install only), `cowork/seats.tsv`, `cowork/coordinator.addr`, `cowork/<today>/coordinator.md`, `cowork/README.md`, and `cowork/lessons/README.md`; copies the four skills (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`) into `.claude/skills/` and `.agents/skills/`; appends `.worktrees/` to `.gitignore` if absent, appends a marked block to `AGENTS.md`, and adds `@AGENTS.md` to `CLAUDE.md` if absent. Plain init preserves existing content, and rerunning an up-to-date installation prints `nothing to do`. `python3 <kit-clone>/bin/cw init --upgrade` (then `--upgrade --apply`) refreshes only `cowork/cw`, `cowork/kit-version`, the copied skills, and the marked `AGENTS.md` block.
+**What `init` touches:** creates `cowork/cw`, `cowork/kit-version` (fresh install only), `cowork/seats.tsv`, `cowork/coordinator.addr`, `cowork/<today>/coordinator.md`, `cowork/README.md`, and `cowork/lessons/README.md`; copies the four skills (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`) into `.claude/skills/` and `.agents/skills/`; appends `.worktrees/` to `.gitignore` if absent, appends a marked block to `AGENTS.md`, and adds `@AGENTS.md` to `CLAUDE.md` if absent. Plain init preserves existing content, and rerunning an up-to-date installation prints `nothing to do`. `python3 ~/.agent-co-work/bin/cw init --upgrade` (then `--upgrade --apply`) refreshes only `cowork/cw`, `cowork/kit-version`, the copied skills, and the marked `AGENTS.md` block.
 
 ### Using the Herdr app
 
 Herdr shows spaces, tabs, and panes while `herdr-core` (`hc`) runs their terminals and keeps them alive when the window closes (closing a pane, tab, or space ends the terminals in it).
 
 1. Open the Herdr app and create a space or tab in the target project folder from the app (the command palette `app.palette` lists every command by name with its key, including `space.new` and `tab.new`, and `app.help` toggles the keys dialog; with no space open, a new tab starts a space).
-2. In that terminal, start Claude Code with `claude -n yyyymmdd-coordinator` (or your chosen coordinator CLI), then continue with `cowork-init` from step 3 above.
+2. In that terminal, start Claude Code with `claude -n yyyymmdd-coordinator` (or your chosen coordinator CLI), then paste the [coordinator prompt](#coordinator-prompt) from Quick start.
 3. When launching seats, `cowork/cw start` passes the caller's `herdr.space=<id>` label to `hc run` without `herdr.tab`, so Herdr creates a new tab for each seat in the same space.
 
 ## Choosing seats
@@ -199,7 +224,7 @@ Long seats launch with `--no-parent`; short seats explicitly use `--parent <call
 
 | Command | Purpose |
 |---|---|
-| `python3 <kit-clone>/bin/cw init [--seat seat=agent:model:effort:life] [--upgrade] [--apply]` | Install or upgrade from the fixed GitHub release clone; plan the version and write `cowork/kit-version` on fresh install or upgrade |
+| `python3 ~/.agent-co-work/bin/cw init [--seat seat=agent:model:effort:life] [--upgrade] [--apply]` | Install or upgrade from the fixed GitHub release clone; plan the version and write `cowork/kit-version` on fresh install or upgrade |
 | `cw seats` | Print `cowork/seats.tsv` |
 | `cw seat set [--args='...'] <seat> <agent> <model> <effort> [life]` | Update one seat row (omit `--args` to preserve; `--args=-` clears) and append a `State` entry |
 | `cw project new <name>` | Create `cowork/projects/<name>.md` |

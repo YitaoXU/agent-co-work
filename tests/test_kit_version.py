@@ -165,8 +165,8 @@ class KitVersionTests(unittest.TestCase):
         self.git('remote', 'add', 'origin', 'https://example.invalid/org/kit.git')
         for scheme in ('http', 'https'):
             with self.subTest(scheme=scheme):
-                secret_url = scheme + '://user:secret' + '@' + 'example.invalid/org/kit.git'
-                self.git('remote', 'set-url', 'origin', secret_url)
+                credential_url = scheme + '://user:secret' + '@' + 'example.invalid/org/kit.git'
+                self.git('remote', 'set-url', 'origin', credential_url)
                 result = self.kit_cw('init', '--upgrade', '--apply')
                 version = (self.root / 'cowork/kit-version').read_text()
                 self.assertEqual(version, f'{self.sha} {scheme}://example.invalid/org/kit.git\n')
