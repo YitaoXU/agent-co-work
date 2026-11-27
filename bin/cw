@@ -19,7 +19,7 @@ import time
 # init embeds repository assets in its vendored copy, keeping that copy standalone.
 EMBEDDED = {}  # bundled assets
 POINTER_FILES = ('CLAUDE.md',)
-SKILLS = ('cowork', 'cowork-init', 'cowork-seat', 'cowork-consolidate')
+SKILLS = ('cowork', 'cowork-init', 'cowork-seat', 'cowork-consolidate', 'cowork-away')
 # Keep the dirty-check scope aligned with the release export's kit paths.
 KIT_PATHS = ('README.md', 'README.zh.md', '.gitignore', 'bin', 'skills', 'templates', 'tests')
 KIT_VERSION = 'cowork/kit-version'
@@ -699,7 +699,9 @@ def init(root, args):
     seat_path = inside(root, 'cowork/seats.tsv')
     table = read(seat_path) if seat_path.exists() else default_seats
     seat_rows(table)
-    print('Seat table (confirm with the user before --apply):\n' + table.rstrip())
+    heading = ('Seat table (installed; unchanged):' if seat_path.exists()
+               else 'Seat table (confirm with the user before --apply):')
+    print(heading + '\n' + table.rstrip())
     if seat_path.exists() and args.seat:
         raise CWError('Seats already exist; use cw seat set to change them.')
     assets = {f'templates/{name}': asset(f'templates/{name}') for name in (
@@ -875,7 +877,8 @@ def launch_plan(root, path, values, seat, name, prompt, caller_info, handover=Fa
     args += ['--json', '--', 'env', f'COWORK_ROOT={root}', f'COWORK_TASK={path}', f'COWORK_SEAT={values["seat"]}']
     fmt = dict(seat, name=name, prompt=prompt)
     args += [part.format(**fmt) for part in ADAPTERS[seat['agent']]]
-    args += extra_argv(seat.get('args', '-'))
+    if seat['agent'] == get_seat(root, values['seat'])['agent']:
+        args += extra_argv(seat.get('args', '-'))
     args += extra_argv(values.get('args', '-'))
     commands = [args]
     if seat['agent'] in ('codex', 'agy'):
@@ -1293,7 +1296,7 @@ def check(root, args):
 def unresolved_reports(text):
     unresolved = set()
     for line in section(text, 'State').splitlines():
-        match = re.fullmatch(r'- REPORT(?: to (.+?))? \((undelivered|delivered|skipped)\): (.*)', line)
+        match = re.fullmatch(r'- REPORT(?: to (.+?))? \((undelivered|delivered|read|skipped)\): (.*)', line)
         if not match:
             continue
         destination, outcome, payload = match.groups()
@@ -1321,6 +1324,24 @@ def unresolved_reports(text):
         else:
             unresolved.discard(key)
     return unresolved
+
+
+def ack(root, args):
+    guard_coordinator_identity(root)
+    if os.environ.get('COWORK_TASK'):
+        values = load_task(root, own_task(root))[2]
+        if values.get('seat') not in ('coordinator', 'coordinator-alt'):
+            raise CWError('Only a coordinator seat may acknowledge reports.')
+    p, text, _ = load_task(root, args.taskfile)
+    receipts = []
+    for destination, payload in sorted(unresolved_reports(text)):
+        line = (f'REPORT (read): {payload}' if destination == 'coordinator'
+                else f'REPORT to {destination} (read): {payload} [detail: ""]')
+        text = state_append(text, line)
+        receipts.append(line)
+    if receipts:
+        write(root, p, text)
+        print('\n'.join(receipts))
 
 
 def status(root):
@@ -1795,6 +1816,8 @@ def parser():
     q = command('report', 'Send a conclusion; path to the coordinator')
     q.add_argument('text')
     q.add_argument('--to', help='Also report to a task terminal; copy the coordinator')
+    q = command('ack', 'Acknowledge unresolved reports after reading a task State (coordinator only)')
+    q.add_argument('taskfile')
     q = command('handover', 'Launch a successor coordinator or accept the address')
     q.add_argument('reason', nargs='?', choices=('context', 'tokens'))
     q.add_argument('--accept', action='store_true')
@@ -1887,6 +1910,8 @@ def main():
             status(root)
         elif cmd == 'report':
             return report(root, args)
+        elif cmd == 'ack':
+            ack(root, args)
         elif cmd == 'handover':
             return handover(root, args)
         elif cmd == 'index':

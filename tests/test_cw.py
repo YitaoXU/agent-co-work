@@ -246,7 +246,7 @@ class CWTests(unittest.TestCase):
 
     def test_help_lists_commands(self):
         output = self.cw('--help').stdout
-        for command in ('init', 'upgrade', 'seats', 'seat', 'new', 'set', 'start', 'approve', 'check', 'status', 'report', 'handover', 'index', 'lessons', 'lint'):
+        for command in ('init', 'upgrade', 'seats', 'seat', 'new', 'set', 'start', 'approve', 'check', 'status', 'report', 'ack', 'handover', 'index', 'lessons', 'lint'):
             self.assertIn(command, output)
 
     def test_readme_links_to_core_task_loop_rules(self):
@@ -261,16 +261,25 @@ class CWTests(unittest.TestCase):
         (self.root / 'CLAUDE.md').write_text('Existing Claude rules\n')
         before = self.snapshot()
         plan = self.cw('init', '--seat', 'advisor=claude:test:high:short').stdout
+        self.assertIn('Seat table (confirm with the user before --apply):', plan)
         self.assertIn('AGENTS.md: append', plan)
         self.assertEqual(before, self.snapshot())
-        self.cw('init', '--seat', 'advisor=claude:test:high:short', '--apply')
+        applied = self.cw('init', '--seat', 'advisor=claude:test:high:short', '--apply').stdout
+        self.assertIn('Seat table (confirm with the user before --apply):', applied)
         self.assertTrue((self.root / 'AGENTS.md').read_text().startswith('Existing project rules without newline\n'))
         self.assertTrue((self.root / 'CLAUDE.md').read_text().startswith('Existing Claude rules\n'))
         self.assertIn('advisor\tclaude\ttest\thigh\tshort', self.cw('seats').stdout)
         self.assertEqual((self.root / 'cowork/coordinator.addr').read_text(), '- -\n')
-        self.assertEqual(len(list((self.root / '.agents/skills').glob('*/SKILL.md'))), 4)
+        skills = {'cowork', 'cowork-init', 'cowork-seat', 'cowork-consolidate', 'cowork-away'}
+        for base in ('.agents/skills', '.claude/skills'):
+            self.assertEqual({p.parent.name for p in (self.root / base).glob('*/SKILL.md')}, skills)
+            self.assertEqual((self.root / base / 'cowork-away/SKILL.md').read_bytes(),
+                             (REPO / 'skills/cowork-away/SKILL.md').read_bytes())
         before = self.snapshot()
-        self.assertIn('nothing to do', self.cw('init', '--apply').stdout)
+        rerun = self.cw('init', '--apply').stdout
+        self.assertIn('Seat table (installed; unchanged):', rerun)
+        self.assertNotIn('confirm with the user', rerun)
+        self.assertIn('nothing to do', rerun)
         self.assertEqual(before, self.snapshot())
         self.assertEqual(self.calls(), [])
 
@@ -335,17 +344,26 @@ class CWTests(unittest.TestCase):
         seats = self.root / 'cowork/seats.tsv'
         seats.write_text(seats.read_text() + '# keep seat comment\n')
         (self.root / '.agents/skills/cowork/SKILL.md').write_text('old skill\n')
+        for base in ('.agents/skills', '.claude/skills'):
+            (self.root / base / 'cowork-away/SKILL.md').unlink()
         (self.root / 'cowork/cw').write_text('old script\n')
         (self.root / 'cowork/kit-version').write_text('old-kit -\n')
         before = self.snapshot()
-        self.cw('init', '--upgrade')
+        plan = self.cw('init', '--upgrade').stdout
+        self.assertIn('Seat table (installed; unchanged):', plan)
+        self.assertNotIn('confirm with the user', plan)
         self.assertEqual(before, self.snapshot())
-        self.cw('init', '--upgrade', '--apply')
+        applied = self.cw('init', '--upgrade', '--apply').stdout
+        self.assertIn('Seat table (installed; unchanged):', applied)
+        self.assertNotIn('confirm with the user', applied)
         self.assertEqual(agents.read_text(), 'before\n' + original + 'after\n')
-        allowed = {'AGENTS.md', 'cowork/cw', 'cowork/kit-version'} | {f'{base}/{s}/SKILL.md' for base in ('.agents/skills', '.claude/skills') for s in ('cowork', 'cowork-init', 'cowork-seat', 'cowork-consolidate')}
+        allowed = {'AGENTS.md', 'cowork/cw', 'cowork/kit-version'} | {f'{base}/{s}/SKILL.md' for base in ('.agents/skills', '.claude/skills') for s in ('cowork', 'cowork-init', 'cowork-seat', 'cowork-consolidate', 'cowork-away')}
         after = self.snapshot()
         for path in before.keys() - allowed:
             self.assertEqual(before[path], after[path], path)
+        for base in ('.agents/skills', '.claude/skills'):
+            self.assertEqual((self.root / base / 'cowork-away/SKILL.md').read_bytes(),
+                             (REPO / 'skills/cowork-away/SKILL.md').read_bytes())
         self.assertTrue(os.access(self.root / 'cowork/cw', os.X_OK))
 
     def test_vendored_script_is_standalone(self):
@@ -357,6 +375,9 @@ class CWTests(unittest.TestCase):
         fresh = self.work / 'fresh'
         fresh.mkdir()
         self.cw('init', '--apply', script=script, cwd=fresh)
+        for base in ('.agents/skills', '.claude/skills'):
+            self.assertEqual((fresh / base / 'cowork-away/SKILL.md').read_bytes(),
+                             (REPO / 'skills/cowork-away/SKILL.md').read_bytes())
         self.cw('new', 'portable', '--seat', 'advisor', '--size', 'small', script=fresh / 'cowork/cw', cwd=fresh)
         self.cw('start', f'cowork/{DAY}/portable.md', script=fresh / 'cowork/cw', cwd=fresh)
         self.assertEqual(self.calls(), [])
@@ -481,19 +502,28 @@ class CWTests(unittest.TestCase):
                 self.assertEqual(launch[-len(expected):], expected)
                 self.assertFalse((self.root / 'never').exists())
 
-    def test_task_agent_override_retains_seat_args(self):
+    def test_task_agent_override_drops_args_only_when_switching_adapters(self):
         self.install()
-        self.cw('seat', 'set', 'worker-light', 'codex', 'model', 'max', '--args=--tag "two words"')
+        self.cw('seat', 'set', 'worker-light', 'codex', 'model', 'max', '--args=--sandbox workspace-write')
         table = (self.root / 'cowork/seats.tsv').read_bytes()
         p = self.new(seat='worker-light', size='small')
-        self.cw('set', p, 'agent=agy:override:xhigh:short')
-        self.cw('start', p, live=True)
-        launch = next(c for c in self.calls() if c[0] == 'run')
-        self.assertEqual(launch[-7:], ['agy', '--model', 'override', '--effort', 'xhigh', '--tag', 'two words'])
-        self.assertNotIn('--outlive-parent', launch)
-        self.assertIn('COWORK_SEAT=worker-light', launch)
+        self.cw('set', p, 'args=--tag "two words"')
+        for agent in ('agy', 'claude', 'codex'):
+            with self.subTest(agent=agent):
+                self.cw('set', p, f'agent={agent}:override:xhigh:short')
+                expected = (['--sandbox', 'workspace-write'] if agent == 'codex' else []) + ['--tag', 'two words']
+                preview = shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])
+                self.clear_calls()
+                self.cw('start', p, live=True)
+                launch = next(c for c in self.calls() if c[0] == 'run')
+                for command in (preview, launch):
+                    self.assertEqual(command[-len(expected):], expected)
+                    self.assertEqual('--sandbox' in command, agent == 'codex')
+                    self.assertIn('COWORK_SEAT=worker-light', command)
+                self.assertNotIn('--no-parent', launch)
         self.cw('set', p, 'agent=-')
-        self.assertEqual(shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])[-2:], ['--tag', 'two words'])
+        self.assertEqual(shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])[-4:],
+                         ['--sandbox', 'workspace-write', '--tag', 'two words'])
         self.assertEqual(table, (self.root / 'cowork/seats.tsv').read_bytes())
 
     def test_invalid_seat_args_are_rejected_before_writes(self):
@@ -675,6 +705,7 @@ class CWTests(unittest.TestCase):
             ('lock', 'release', 'gpu', '--force'),
             ('handover', 'context'), ('handover', 'tokens'),
             ('seat', 'set', 'advisor', 'codex', 'model', 'high'),
+            ('ack', p),
         ]
         before = self.snapshot()
         for command in commands:
@@ -1877,6 +1908,101 @@ sys.exit(namespace['main']())
         self.cw('report', 'no address; docs/result.md', live=True, env=environ, code=1)
         self.assertEqual(self.calls(), [])
         self.assertEqual(p.read_text().count('REPORT (undelivered):'), 3)
+
+    def test_ack_resolves_reports_keeps_history_and_later_receipts(self):
+        self.install(live=True)
+        p = self.new(size='small')
+        self.cw('set', p, 'status=closed')
+        env = {'COWORK_TASK': str(p)}
+        payload = 'read from State; evidence [v1]'
+        delivered = 'later delivered; other evidence'
+        for text in (payload, delivered):
+            self.cw('report', text, env=env, code=1)
+        self.cw('report', delivered, live=True, env=env)
+        module = self.module()
+        before = p.read_text()
+        self.assertEqual(module.unresolved_reports(before), {('coordinator', payload)})
+        self.assertIn('undelivered report', self.cw('status').stdout)
+        self.clear_calls()
+        result = self.cw('ack', p, live=True, script=self.root / 'cowork/cw')
+        self.assertEqual(result.stdout, f'REPORT (read): {payload}\n')
+        self.assertTrue(module.section(p.read_text(), 'State').startswith(module.section(before, 'State').rstrip() + '\n'))
+        self.assertEqual(p.read_text().count('REPORT (undelivered):'), 2)
+        self.assertIn(f'REPORT (delivered): {delivered}', p.read_text())
+        self.assertEqual(module.unresolved_reports(p.read_text()), set())
+        self.assertNotIn('undelivered report', self.cw('status').stdout)
+        self.assertEqual(self.calls(), [])
+        self.cw('report', payload, live=True, env=env)
+        self.assertEqual(module.unresolved_reports(p.read_text()), set())
+        self.cw('report', payload, env=env, code=1)
+        self.assertEqual(module.unresolved_reports(p.read_text()), {('coordinator', payload)})
+        self.assertIn('undelivered report', self.cw('status').stdout)
+        self.cw('ack', p)
+        self.assertEqual(p.read_text().count(f'REPORT (read): {payload}'), 2)
+        self.assertEqual(module.unresolved_reports(p.read_text()), set())
+
+    def test_ack_direct_destinations_and_legacy_details_preserve_payloads(self):
+        self.install(live=True)
+        sender = self.new(size='small')
+        peer = self.new('peer', size='small')
+        self.cw('set', peer, 'terminal=peer (t7)')
+        payload = 'result [same terminal as target; sent once]; evidence [detail: "literal"]'
+        self.configure(fail=['send'])
+        self.cw('report', '--to', 'peer', payload, live=True, env={'COWORK_TASK': str(sender)}, code=1)
+        module = self.module()
+        legacy = 'REPORT to old-peer (t8) (undelivered): done; file [v1] [error [nested]]'
+        sender.write_text(module.state_append(sender.read_text(), legacy))
+        before = module.section(sender.read_text(), 'State').rstrip()
+        self.assertEqual(module.unresolved_reports(sender.read_text()),
+                         {('peer', payload), ('coordinator', payload), ('old-peer', 'done; file [v1]')})
+        self.clear_calls()
+        coordinator = self.root / f'cowork/{DAY}/coordinator.md'
+        result = self.cw('ack', sender, live=True, env={'COWORK_TASK': str(coordinator)})
+        self.assertIn(f'REPORT (read): {payload}', result.stdout)
+        self.assertIn(f'REPORT to peer (read): {payload} [detail: ""]', result.stdout)
+        self.assertIn('REPORT to old-peer (read): done; file [v1] [detail: ""]', result.stdout)
+        self.assertTrue(module.section(sender.read_text(), 'State').startswith(before + '\n'))
+        self.assertEqual(module.unresolved_reports(sender.read_text()), set())
+        self.assertNotIn('undelivered report', self.cw('status').stdout)
+        self.assertEqual(self.calls(), [])
+        self.configure()
+        self.cw('report', '--to', 'peer', payload, live=True, env={'COWORK_TASK': str(sender)})
+        self.assertEqual(module.unresolved_reports(sender.read_text()), set())
+
+    def test_ack_is_silent_and_read_only_without_pending_reports(self):
+        self.install()
+        p = self.new(size='small')
+        coordinator = self.root / f'cowork/{DAY}/coordinator.md'
+        self.cw('set', coordinator, 'seat=coordinator-alt')
+        env = {'COWORK_TASK': str(coordinator)}
+        for receipt in ('', '- REPORT (undelivered): done; evidence\n- REPORT (delivered): done; evidence\n',
+                        '- REPORT to peer (skipped): done; evidence [detail: "offline"]\n'):
+            with self.subTest(receipt=receipt):
+                module = self.module()
+                p.write_text(module.replace_section(p.read_text(), 'State', receipt + '\n'))
+                before = self.snapshot()
+                result = self.cw('ack', p, env=env)
+                self.assertEqual((result.stdout, result.stderr), ('', ''))
+                self.assertEqual(before, self.snapshot())
+        self.assertEqual(self.calls(), [])
+
+    def test_ack_refuses_non_coordinator_and_outside_paths_before_writes(self):
+        self.install(live=True)
+        p = self.new(size='small')
+        self.cw('report', 'pending; evidence', env={'COWORK_TASK': str(p)}, code=1)
+        before = self.snapshot()
+        for live in (False, True):
+            result = self.cw('ack', p, live=live,
+                             env={'COWORK_TASK': str(p), 'COWORK_SEAT': 'coordinator'}, code=1)
+            self.assertIn('Only a coordinator seat may acknowledge reports.', result.stderr)
+            self.assertEqual(before, self.snapshot())
+        outside = self.work / 'outside.md'
+        outside.write_bytes(p.read_bytes())
+        result = self.cw('ack', outside, code=1)
+        self.assertIn('Path escapes project root', result.stderr)
+        self.assertEqual(outside.read_bytes(), p.read_bytes())
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual(self.calls(), [])
 
     def test_report_to_prefers_sender_day_then_newest_record(self):
         self.install(live=True)

@@ -62,6 +62,7 @@ cowork/cw lint 核对 SHA。使用以下描述准备项目的 Direction 和 Plan
 - **升级已有项目：** 告诉现有项目的协调员**升级（upgrade）**，审阅它展示的升级计划与 kit SHA，确认后再应用，并核对安装后的 SHA 与已确认计划一致。
 - **请求讨论席位：** 请协调员打开一个讨论席位（可指定希望使用的 agent），切换到它告知的 Herdr 标签页直接讨论。需要它编辑项目文件时明确提出；结束讨论时告知它，由它向协调员汇报结论和未决问题。
 - **批准 Brief 与决策：** 向协调员提供项目描述，讨论 Direction 和 Plan，在每个任务启动前批准 Brief，裁决上报的重大问题，并审阅协调员简短的结论优先 Wrap-up 摘要以确定下一步。
+- **离开期间继续工作：** 告诉协调员你大约会离开多久，回答它的问题，然后说 **go** 批准[离开计划](skills/cowork-away/SKILL.md)；回来后阅读摘要。
 
 ## 席位配置
 
@@ -174,7 +175,7 @@ cowork/cw lint
 
 **Kit 版本**：首次安装的计划显示 `kit: to <sha>`，版本有变化的升级显示 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出已安装版本，供你与计划核对。仅在无告警和错误时输出 `Caps OK.`；长度或重复行提示则显示 `Validation OK; <n> over guideline.`。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。`init` 对 kit 未提交改动和开发仓库仍仅告警；`upgrade` 则拒绝这些 clone。
 
-**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将四个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）复制到 `.claude/skills/` 和 `.agents/skills/`；首次安装时向 `.gitignore` 追加缺失的 `cowork/`、`output/`、`.scratch/`、`.tmp/`、`.worktrees/`（计划中列出），向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。已有安装的普通 init 和 `--upgrade` 逐字节保留 `.gitignore`，缺少默认项时提示。普通 init 保留其他已有内容（包括标记指令块以外的已有项目文字），对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
+**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将五个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）复制到 `.claude/skills/` 和 `.agents/skills/`；首次安装时向 `.gitignore` 追加缺失的 `cowork/`、`output/`、`.scratch/`、`.tmp/`、`.worktrees/`（计划中列出），向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。已有安装的普通 init 和 `--upgrade` 逐字节保留 `.gitignore`，缺少默认项时提示。普通 init 保留其他已有内容（包括标记指令块以外的已有项目文字），对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
 
 **使用服务器的项目**：如果项目在服务器上运行作业，`cowork-init` 的可选步骤会询问 [templates/server.md](templates/server.md) 中的每个占位符，填好规则供用户确认后，保存到 `docs/server.md`（或项目声明的文档路径）。已有服务器指南绝不覆盖，并在 `AGENTS.md` 的标记区块之外添加指针。硬件信息在沙箱外探测前保持未验证状态。
 
@@ -210,7 +211,7 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 已有项目保留旧 `coder-heavy` / `coder-light` 行及记录；升级不会迁移席位。项目缺少某个模板默认席位时，会回退到内嵌默认行，后续可用 `cw seat set` 将自定义行追加到旧项目。
 
 - **修改席位默认值**：初始化阶段可传 `--seat <seat>=<agent>:<model>:<effort>:<life>`（`args` 在初始化后配置）；初始化完成后运行 `cowork/cw seat set [--args='...'] <seat> <agent> <model> <effort> [short|long]`（更新 `cowork/seats.tsv`、保留注释，并在调用方记录中追加一行 `State`）。`--args='...'` 替换额外适配器选项（例如 `--args='--sandbox workspace-write'` 或 `'--config "label=two words"'`），省略 `--args` 则保留现有 `args`，`--args=-` 用于清空；切换适配器时请清空或替换不兼容的选项。
-- **为单个任务指定 agent**：向 `cowork/cw new` 传入 `--agent <agent>:<model>:<effort>[:<life>]`，或运行 `cowork/cw set <taskfile> agent=<agent>:<model>:<effort>[:<life>]`（`agent=-` 恢复席位默认值）。省略 `life` 时沿用席位设置，且单任务覆盖会保留该席位的 `args`（因此当席位带有特定适配器的 `args` 时，切换适配器前需先清空或更新这些 `args`）；席位的角色和命名规则保持不变。
+- **为单个任务指定 agent**：向 `cowork/cw new` 传入 `--agent <agent>:<model>:<effort>[:<life>]`，或运行 `cowork/cw set <taskfile> agent=<agent>:<model>:<effort>[:<life>]`（`agent=-` 恢复席位默认值）。省略 `life` 时沿用席位设置。同一适配器的覆盖保留席位 `args`；切换适配器时省略席位 `args`，任务 `args:` 仍然生效。席位的角色和命名规则保持不变。
 - **单任务额外参数**：`cw new ... --args='-a never'` 或 `cw set <taskfile> 'args=-a never'` 将任务参数追加在席位参数之后，三种适配器一致。`args=-` 仅清空任务参数；旧记录缺少该字段时视为空。使用 shell 风格引号但不执行 shell 展开；`args: --label "run # 1" # comment` 保留引号中的井号。无人值守选项只放在需要它的任务上。
 
 ### 讨论席位
@@ -231,7 +232,7 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 
 - `cw report "<conclusion>; <path>"` 向协调员发送带任务前缀的消息。`--to <task>` 优先解析发送方同日记录，否则使用最新同名记录，发送给活跃目标并抄送协调员；目标缺失则只通知协调员。每个直接收件方都有送达回执。
 - 报告发送最多尝试三次，每次约 180 秒，整条命令共用 10 分钟预算（含 `--to` 的两个收件方）。每次重试前读取目标屏幕；正文已显示则视为送达，不再重发。进度写入 stderr，仅最终结果产生回执。任务投递、按键、启动及其他通知保持原有行为。
-- 协调员报告失败时追加 `REPORT (undelivered):`；随后相同正文和目的地送达时追加 `REPORT (delivered):`，保留失败记录。普通首次成功不新增 State 行。`cw status` 标记未解决回执，包括已关闭或未分配终端的任务；不同正文/目的地互不消除，再次失败会重新标记。
+- 协调员报告失败时追加 `REPORT (undelivered):`；随后相同正文和目的地送达时追加 `REPORT (delivered):`，保留失败记录。协调员从 State 读完报告后运行 `cw ack <taskfile>`，为每个未解决的正文/目的地追加 `REPORT (read):` 并保留历史；命令打印确认项，无待确认项时不输出。普通首次成功不新增 State 行。`cw status` 标记未解决回执，包括已关闭或未分配终端的任务；不同正文/目的地互不消除，再次失败会重新标记。
 - `cw index` 生成以 60 行为建议长度的概览：按项目/线路分组的活跃 task/seat，以及近 7 天关闭的记录。step 汇总为父任务行上的计数（同日父任务优先，否则最新）；无父任务的 step 留在每日记录中。超出时仍写入概览并告警；应进行整理。
 - `cw lessons [yyyymmdd]` 从 Wrap-up/旧 Debrief 刷新每日 From tasks，保留 Takeaways。
 - `cw lint` 打印安装版本、校验头部和项目状态，并检查非空节行数：Goal <=3、State <=10、Handover <=20、项目 Decisions <=20。文件建议长度为教训 README <=40、概览 <=60；项目历史归档不受 Decisions 检查。长度超出与超过 40 字符的完全重复行输出 `over guideline: ...; consider cowork-consolidate`，退出码为 0。保持简洁，超出时整理。项目/任务头部、名称、席位格式与路径/符号链接越界仍以退出码 1 失败。
@@ -280,6 +281,7 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 | `cw lock expect <resource> <time>` | 向后继任务与协调员发送参考释放时间 |
 | `cw lock release <resource> [--evidence <path>] [--note <text>] [--force --holder <yyyymmdd/task>]` | 释放锁、通知后继任务与协调员并写入一条 `State` 行（`--force --holder` 仅限协调员；变更后失败返回 3） |
 | `cw report [--to <task>] "<conclusion>; <path>"` | 向协调员汇报（可选同时发给活跃任务终端） |
+| `cw ack <taskfile>` | 协调员确认已从 State 读过的未解决报告，保留回执历史 |
 | `cw handover [context\|tokens \| --accept]` | 启动继任协调员或接管 `coordinator.addr` |
 | `cw index` | 重新生成 `cowork/README.md` |
 | `cw lessons [yyyymmdd]` | 将 Wrap-up/Debrief 中的 `- lesson:` 汇总到 `cowork/lessons/<date>.md` |
@@ -303,8 +305,8 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 
 ### 开发说明
 
-- **目录结构**：`bin/cw`（单个纯标准库 Python 3 脚本）、`skills/`（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`）、`templates/` 与 `tests/`。
-- **单一规则来源**：协作规则只维护在 [skills/cowork/SKILL.md](skills/cowork/SKILL.md)（建议不超过 150 行）；其余三个技能仅链接至此，不重复陈述规则。
+- **目录结构**：`bin/cw`（单个纯标准库 Python 3 脚本）、`skills/`（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）、`templates/` 与 `tests/`。
+- **单一规则来源**：协作规则只维护在 [skills/cowork/SKILL.md](skills/cowork/SKILL.md)（建议不超过 150 行）；其余四个技能仅链接至此，不重复陈述规则。
 - **日常校验**：在 kit 仓库中运行 `python3 -m unittest discover tests`；在已初始化的项目中运行 `cowork/cw lint`，校验该项目的协作记录。
 
 ### 维护者发布

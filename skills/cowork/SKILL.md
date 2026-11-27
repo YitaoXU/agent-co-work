@@ -10,7 +10,7 @@ Read `hc --skill` and `herdr-app --skill` before using Herdr; use `hc` for agent
 
 ## Seats
 
-`cowork/seats.tsv` assigns each seat's agent, model, effort, lifetime (`short`/`long`), and optional `args`; a task's `agent:` or `args:` overrides or extends it (use `-a never` only per task for unattended runs/tests, never seat-wide).
+`cowork/seats.tsv` assigns each seat's agent, model, effort, lifetime (`short`/`long`), and optional `args`; a task's `agent:` overrides it (dropping seat args when switching adapters), and task `args:` extend the launch (use `-a never` only per task for unattended runs/tests, never seat-wide).
 - `coordinator` (and `coordinator-alt` when tokens run low): discuss with the user, draft Direction/Plan/Briefs/Wrap-ups, coordinate, decide, and give final acceptance.
 - `advisor`: review, propose alternatives, and cite evidence; never owns the plan.
 - `worker-heavy` / `worker-light` / `auditor`: heavy handles cross-module, unclear, or critical-path work; light handles specified single-module, mechanical, or batch work; `auditor` runs fresh-session checks for high-risk changes.
@@ -31,6 +31,7 @@ Use `kind: task|step|seat`, `project: <name>|-`, `line: main|side|-` and `draft 
 5. Wrap-up: coordinator drafts the Wrap-up (with advisor input as needed), sends the user a short conclusion-first summary (done, result, evidence path, next, decision needed), adjusts Direction/Plan after user decision, and records it.
 6. Repeat from step 3 until the user closes the project; put durable conclusions in the project's own docs.
 
+When the user will be away, follow [cowork-away](../cowork-away/SKILL.md); the user's single "go" on the away plan supplies user approval for all its queued Briefs.
 Multiple approved tasks may run in parallel, on either line; one task's Wrap-up does not block another approved task.
 `cw start` requires a task's user approval and status approved/running/blocked; running or blocked tasks may relaunch. A worker step with a parent needs that parent to be an approved task with one of those statuses; advisor steps may run before approval to prepare the Plan and Brief. Standalone steps and seats are not task-gated.
 Write a Goal and an unambiguous numbered Brief (action, done-condition meaning used/verified, defaults, named phase transitions, calibrated stop gates, outputs); cite project docs or plan links rather than restating them.
@@ -60,7 +61,7 @@ Task and resource names match `[a-z0-9-]{1,20}`; terminal names are `yyyymmdd-<t
 Use `cw start` to launch seats (handles adapter naming, startup retries, and one undelivered early-exit relaunch; never relaunches delivered or ambiguous starts; prints commands without `HC_TERMINAL_ID`).
 Report with `cowork/cw report [--to <task>] "<conclusion>; <path>"` (evidence in files) only at stop conditions, named phase transitions, and completion; every other step goes only into `State`.
 The coordinator reads the cited evidence before presenting conclusions and waits for `cw report`, not terminal `done` status (which can lag or fire early on `agy`).
-An undelivered report appends `REPORT (undelivered):` to `State` and prints a relay line (never claim delivery); if blocked by a sandbox, retry outside the sandbox within normal permissions. A later matching delivery appends `REPORT (delivered):` without deleting the original failure receipt; `cw status` flags unresolved undelivered reports from State history.
+An undelivered report appends `REPORT (undelivered):` to `State` and prints a relay line (never claim delivery); if blocked by a sandbox, retry outside the sandbox within normal permissions. A later matching delivery appends `REPORT (delivered):` without deleting the original failure receipt; after reading a report from State, the coordinator runs `cw ack <taskfile>` to append `REPORT (read):`; `cw status` flags unresolved undelivered reports from State history.
 
 ## Code
 
