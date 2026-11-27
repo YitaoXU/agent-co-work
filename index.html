@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agent-co-work</title>
+<meta name="description" content="A portable multi-agent collaboration kit for any project folder, built on Herdr and one standard-library Python CLI.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<script>
+(function () {
+  var lang = null;
+  try { lang = localStorage.getItem('lang'); } catch (e) {}
+  if (lang !== 'en' && lang !== 'zh') lang = /^zh\b/i.test(navigator.language || '') ? 'zh' : 'en';
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+})();
+</script>
+<style>
+/* One reading column; fact chips under the title; tables for seats, review tiers, layout; a release log at the end */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --fg: #18202c; --muted: #5a6474; --line: #dde2ea;
+  --accent: #0e6e66; --accent-soft: #e2f1ef; --code-bg: #eef1f5;
+  --sans: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #12161d; --surface: #1a2029; --fg: #e4e8ee; --muted: #9aa4b3; --line: #2c3440;
+  --accent: #4fc2b6; --accent-soft: #17312f; --code-bg: #222a35; color-scheme: dark } }
+html:lang(zh-CN) [data-l="en"], html:not(:lang(zh-CN)) [data-l="zh"] { display: none !important }
+* { box-sizing: border-box }
+html { -webkit-text-size-adjust: 100% }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 860px; margin: 0 auto; padding-block: 28px 72px; display: grid; gap: 44px }
+a { color: var(--accent) }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+h1, h2, h3 { text-wrap: balance; line-height: 1.3; margin: 0 }
+h1 { font-family: var(--mono); font-size: 32px; font-weight: 500; letter-spacing: -0.01em }
+h2 { font-size: 20px; font-weight: 600 }
+h3 { font-size: 14px; font-weight: 600 }
+p { margin: 0; max-width: 68ch }
+section { display: grid; gap: 14px; min-width: 0 }
+code, .mono { font-family: var(--mono); font-size: .88em }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap }
+.top nav { display: flex; gap: 14px; align-items: center; font-size: 14px }
+.langs { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden }
+.langs button { font: inherit; font-size: 13px; padding: 3px 10px; border: 0; background: var(--surface); color: var(--muted); cursor: pointer }
+html:not(:lang(zh-CN)) .langs [data-set="en"], html:lang(zh-CN) .langs [data-set="zh"] { background: var(--accent); color: var(--bg) }
+header { display: grid; gap: 14px }
+.lede { color: var(--muted); font-size: 16px }
+.facts { display: flex; flex-wrap: wrap; gap: 8px }
+.fact { font-family: var(--mono); font-size: 12.5px; border: 1px solid var(--line); background: var(--surface); padding: 4px 10px; border-radius: 6px; color: var(--muted) }
+.fact b { color: var(--fg); font-weight: 500 }
+.parts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px }
+.part { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 4px; align-content: start }
+.part .name { font-family: var(--mono); font-size: 14px; color: var(--accent); font-weight: 500 }
+.part p { font-size: 14px; color: var(--muted) }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface) }
+table { border-collapse: collapse; width: 100%; font-size: 14px }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font-weight: 500; color: var(--muted); font-size: 12.5px; letter-spacing: .03em; background: var(--code-bg) }
+tr:last-child td { border-bottom: 0 }
+td:first-child code { white-space: nowrap }
+.flow { list-style: none; margin: 0; padding: 0; counter-reset: s }
+.flow li { counter-increment: s; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--line) }
+.flow li:last-child { border-bottom: 0 }
+.flow li::before { content: counter(s); font-family: var(--mono); font-size: 13px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-weight: 500 }
+.flow b { font-weight: 600 }
+.note { font-size: 14px; color: var(--muted); border-left: 3px solid var(--accent); padding: 4px 0 4px 12px }
+pre { margin: 0; background: var(--code-bg); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.6 }
+.cmds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+.cmd { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; display: grid; gap: 6px; align-content: start }
+.cmd p { font-size: 13.5px; color: var(--muted) }
+.log { display: grid; border-left: 2px solid var(--line); margin-left: 6px }
+.rel { position: relative; padding: 0 0 18px 20px; display: grid; gap: 4px }
+.rel::before { content: ""; position: absolute; left: -7px; top: 7px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--line) }
+.rel.now::before { border-color: var(--accent); background: var(--accent) }
+.rel .tag { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline }
+.rel .sha { font-family: var(--mono); font-weight: 500; color: var(--accent) }
+.rel .what { font-weight: 600 }
+.rel ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted) }
+.older { font-size: 13.5px; color: var(--muted); padding-left: 20px }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-wrap: wrap; gap: 6px 16px }
+@media (max-width: 640px) { .parts, .cmds { grid-template-columns: 1fr } h1 { font-size: 26px } }
+</style>
+</head>
+<body>
+<main>
+<div class="top">
+  <nav>
+    <a href="https://github.com/YitaoXU/agent-co-work">GitHub</a>
+    <a data-l="en" href="https://github.com/YitaoXU/agent-co-work/blob/main/README.md">README</a>
+    <a data-l="zh" href="https://github.com/YitaoXU/agent-co-work/blob/main/README.zh.md">README（中文）</a>
+  </nav>
+  <div class="langs" role="group" aria-label="Language">
+    <button type="button" data-set="en">English</button>
+    <button type="button" data-set="zh">中文</button>
+  </div>
+</div>
+
+<header>
+  <h1>agent-co-work</h1>
+  <p class="lede" data-l="en">A multi-agent collaboration kit you install into any project folder. You agree the direction with a coordinator, approve each task and decide the hard questions; the agents dispatch, review, record and hand over by one shared set of rules.</p>
+  <p class="lede" data-l="zh">一套装进任意项目文件夹的多 agent 协作工具。你和协调员商定方向、批准每个任务、裁决重大问题；其余的派活、审查、记录和交接由各个 agent 按同一套规则完成。</p>
+  <div class="facts">
+    <span class="fact"><span data-l="en">platform</span><span data-l="zh">平台</span> <b>macOS / Linux</b></span>
+    <span class="fact"><span data-l="en">needs</span><span data-l="zh">依赖</span> <b>Herdr · Python 3.9+ · git</b></span>
+    <span class="fact"><span data-l="en">agents</span><span data-l="zh">agent CLI</span> <b>claude · codex · agy</b></span>
+  </div>
+</header>
+
+<section>
+  <h2><span data-l="en">What it is made of</span><span data-l="zh">由什么组成</span></h2>
+  <div class="parts">
+    <div class="part"><span class="name">hc (Herdr)</span>
+      <p data-l="en">Persistent terminals. Each agent runs in its own tab, so you can switch over to watch or take over at any time.</p>
+      <p data-l="zh">持久终端。每个 agent 跑在自己的标签页里，可以随时切过去看或接手。</p></div>
+    <div class="part"><span class="name">cowork/cw</span>
+      <p data-l="en">One standard-library Python CLI for task records, approval gates, launches, reports, resource locks, handovers and consolidation.</p>
+      <p data-l="zh">单文件、只用标准库的 Python CLI。负责任务记录、批准关卡、启动、汇报、资源锁、交接和整理。</p></div>
+    <div class="part"><span class="name">5 skills</span>
+      <p data-l="en"><code>cowork</code> holds every rule; <code>cowork-init</code>, <code>cowork-seat</code>, <code>cowork-consolidate</code> and <code>cowork-away</code> cover install, seats and handover, consolidation, and away mode.</p>
+      <p data-l="zh"><code>cowork</code> 是唯一的规则来源；<code>cowork-init</code>、<code>cowork-seat</code>、<code>cowork-consolidate</code>、<code>cowork-away</code> 分别管安装、角色与交接、整理、离开模式。</p></div>
+  </div>
+</section>
+
+<section>
+  <h2><span data-l="en">Get started</span><span data-l="zh">开始使用</span></h2>
+  <p data-l="en">You never run <code>cw</code> or Python yourself. Install <a href="https://herdr.dev/download/">Herdr</a>, at least one agent CLI, <code>python3</code> and <code>git</code>. In Herdr, click <b>+</b>, choose your project folder, and start your coordinator in the new tab:</p>
+  <p data-l="zh">你不需要自己运行 <code>cw</code> 或 Python。先安装 <a href="https://herdr.dev/download/">Herdr</a>、至少一个 agent CLI、<code>python3</code> 和 <code>git</code>。在 Herdr 里点 <b>+</b>，选择项目文件夹，在新标签页里启动协调员：</p>
+  <pre>claude</pre>
+  <p data-l="en">To use another CLI, type <code>codex</code> or <code>agy</code> instead. Then paste the <a href="https://github.com/YitaoXU/agent-co-work/blob/main/README.md#coordinator-prompt">coordinator prompt</a> from the README and fill in your project description.</p>
+  <p data-l="zh">想用别的 CLI，把 <code>claude</code> 换成 <code>codex</code> 或 <code>agy</code>。然后粘贴 README 里的<a href="https://github.com/YitaoXU/agent-co-work/blob/main/README.zh.md#协调员提示词">协调员提示词</a>，填上项目描述。</p>
+  <ol class="flow">
+    <li><span data-l="en"><b>Install</b>: confirm the recommended seat table, file plan and kit SHA.</span><span data-l="zh"><b>安装</b>：确认协调员推荐的角色配置、文件计划和 kit 版本号。</span></li>
+    <li><span data-l="en"><b>Daily work</b>: agree Direction and Plan, approve each Brief, decide escalated questions, read the Wrap-up summaries.</span><span data-l="zh"><b>日常</b>：定方向和计划，每个任务前批准 Brief，裁决上报的问题，看收尾摘要。</span></li>
+    <li><span data-l="en"><b>Upgrade</b>: say “upgrade”; nothing applies until you confirm the plan and SHA.</span><span data-l="zh"><b>升级</b>：对协调员说“升级”，确认它给出的计划和版本号后才会应用。</span></li>
+    <li><span data-l="en"><b>Discuss</b>: ask for a discussion seat and talk with it in the tab it names.</span><span data-l="zh"><b>讨论</b>：让协调员开一个讨论席位，切到它告诉你的标签页直接聊。</span></li>
+    <li><span data-l="en"><b>Away</b>: say roughly how long you will be gone, answer its questions, say <b>go</b>; read the summary when you return.</span><span data-l="zh"><b>离开</b>：说大约离开多久，回答它的问题，说 <b>go</b>；回来后看摘要。</span></li>
+  </ol>
+</section>
+
+<section>
+  <h2><span data-l="en">Seats</span><span data-l="zh">角色</span></h2>
+  <p data-l="en">Any seat can run any supported CLI; agent, model, effort and lifetime live in <code>cowork/seats.tsv</code>, and one task can override its agent.</p>
+  <p data-l="zh">每个角色可以运行任意一个支持的 CLI，模型、推理强度和生命周期写在 <code>cowork/seats.tsv</code>。单个任务也可以临时换 agent。</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th><span data-l="en">Seat</span><span data-l="zh">角色</span></th><th><span data-l="en">Does</span><span data-l="zh">做什么</span></th></tr></thead>
+    <tbody>
+      <tr><td><code>coordinator</code></td><td><span data-l="en">Talks with you; drafts Direction, Plan, Briefs and Wrap-ups; dispatches and decides</span><span data-l="zh">和你讨论，写方向、计划、Brief 和收尾摘要，派活并做决定</span></td></tr>
+      <tr><td><code>coordinator-alt</code></td><td><span data-l="en">Takes over when the coordinator runs low on tokens</span><span data-l="zh">主协调员 token 不够时接手</span></td></tr>
+      <tr><td><code>advisor</code></td><td><span data-l="en">Reviews and proposes alternatives, citing a file or command for every fact; never owns the plan</span><span data-l="zh">只审阅和提出替代方案，每条事实都要引用文件或命令输出；不拥有计划</span></td></tr>
+      <tr><td><code>worker-heavy</code></td><td><span data-l="en">Cross-module, unclear or critical-path work</span><span data-l="zh">跨模块、不明确或关键路径上的工作</span></td></tr>
+      <tr><td><code>worker-light</code></td><td><span data-l="en">Specified single-module, mechanical or batch work</span><span data-l="zh">已经写清楚的单模块、机械性或批量工作</span></td></tr>
+      <tr><td><code>auditor</code></td><td><span data-l="en">Fresh-session checks of high-risk changes, never by their author</span><span data-l="zh">用全新会话检查高风险改动，不能是作者本人</span></td></tr>
+      <tr><td><code>discussion</code></td><td><span data-l="en">Talks with you directly in its own tab and hands conclusions to the coordinator</span><span data-l="zh">在单独标签页里直接和你讨论，结束时把结论交给协调员</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2><span data-l="en">How a task runs</span><span data-l="zh">一个任务怎么走完</span></h2>
+  <ol class="flow">
+    <li><span data-l="en"><b>Direction</b>: you and the coordinator agree what the project should become.</span><span data-l="zh"><b>方向（Direction）</b>：你和协调员商定项目要做成什么。</span></li>
+    <li><span data-l="en"><b>Plan</b>: the coordinator lists numbered tasks, consults the advisor when useful, and records your approval with a date.</span><span data-l="zh"><b>计划（Plan）</b>：协调员列出编号任务，需要时请顾问审阅，你批准后记一条带日期的决定。</span></li>
+    <li><span data-l="en"><b>Brief</b>: before each task, numbered steps, done-conditions, defaults and stop conditions; <code>cw start</code> refuses until you approve.</span><span data-l="zh"><b>Brief</b>：每个任务开始前，协调员写好步骤、完成条件、默认值和停止条件，你批准后才能 <code>cw start</code>。</span></li>
+    <li><span data-l="en"><b>Run</b>: the coordinator dispatches steps and settles routine questions; science, scope, budget and risk questions come to you first.</span><span data-l="zh"><b>执行</b>：协调员派步骤、处理小问题；科学、范围、预算、风险类的难题先问你再继续。</span></li>
+    <li><span data-l="en"><b>Wrap-up</b>: a short conclusion-first summary (result, evidence, lessons, next, decision needed); you decide what follows.</span><span data-l="zh"><b>收尾（Wrap-up）</b>：结论优先的短摘要（结果、证据位置、经验、下一步、需要你决定什么），由你决定接下来怎么走。</span></li>
+  </ol>
+  <p class="note" data-l="en">Approved tasks can run in parallel. Long or multi-task Briefs live in <code>docs/plans/NNN-*</code>; short ones stay in the task record.</p>
+  <p class="note" data-l="zh">多个已批准的任务可以并行。长的或跨任务的 Brief 放在 <code>docs/plans/NNN-*</code>，短的留在任务记录里。</p>
+</section>
+
+<section>
+  <h2><span data-l="en">Review by risk</span><span data-l="zh">审查按风险分档</span></h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th><span data-l="en">Change</span><span data-l="zh">改动类型</span></th><th><span data-l="en">Checked by</span><span data-l="zh">谁来查</span></th></tr></thead>
+    <tbody>
+      <tr><td><span data-l="en">Records, docs, routine plans</span><span data-l="zh">记录、文档、常规计划</span></td><td><span data-l="en">Coordinator verifies links, facts and citations</span><span data-l="zh">协调员直接核对链接、事实和引用</span></td></tr>
+      <tr><td><span data-l="en">Ordinary code</span><span data-l="zh">普通代码</span></td><td><span data-l="en">Worker runs the tests; coordinator reviews the diff and output</span><span data-l="zh">执行者跑相关测试，协调员审阅改动和测试输出</span></td></tr>
+      <tr><td><span data-l="en">Critical paths (training, sampling, scoring, releases, locks, approvals)</span><span data-l="zh">关键路径（训练、采样、打分、发布、锁和审批代码）</span></td><td><span data-l="en">A fresh-session auditor runs the code and writes findings</span><span data-l="zh">全新会话的审计员运行代码、写出发现，协调员据此验收</span></td></tr>
+      <tr><td><span data-l="en">GPU runs</span><span data-l="zh">GPU 实验</span></td><td><span data-l="en">Pre-launch config review, an early acceptance gate, no rerun of passed runs</span><span data-l="zh">启动前审配置，在第一个检查点做早期验收，通过的运行不重跑</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note" data-l="en">Workers and auditors never commit; the coordinator commits after acceptance, with explicit paths.</p>
+  <p class="note" data-l="zh">执行者和审计员从不提交代码；协调员验收后按明确路径提交。</p>
+</section>
+
+<section>
+  <h2><span data-l="en">Commands the coordinator runs</span><span data-l="zh">协调员用的命令</span></h2>
+  <div class="cmds">
+    <div class="cmd"><h3><span data-l="en">Tasks</span><span data-l="zh">任务</span></h3><p><code>cw new</code> · <code>cw set</code> · <code>cw start</code> · <code>cw check</code></p></div>
+    <div class="cmd"><h3><span data-l="en">Status and reports</span><span data-l="zh">状态与汇报</span></h3><p><code>cw status</code> · <code>cw report</code> · <code>cw ack</code></p></div>
+    <div class="cmd"><h3><span data-l="en">Resource locks</span><span data-l="zh">资源锁</span></h3><p><code>cw lock next</code> · <code>take</code> · <code>expect</code> · <code>release</code></p></div>
+    <div class="cmd"><h3><span data-l="en">Handover</span><span data-l="zh">交接</span></h3><p><code>cw handover context</code> · <code>tokens</code> · <code>--accept</code></p></div>
+    <div class="cmd"><h3><span data-l="en">Consolidation</span><span data-l="zh">整理</span></h3><p><code>cw index</code> · <code>cw lessons</code> · <code>cw lint</code></p></div>
+    <div class="cmd"><h3><span data-l="en">Install and upgrade</span><span data-l="zh">安装与升级</span></h3><p><code>cw init</code> · <code>cw upgrade</code> · <code>cw seats</code> · <code>cw seat set</code></p></div>
+  </div>
+  <p data-l="en">The full command reference is in the <a href="https://github.com/YitaoXU/agent-co-work/blob/main/README.md#command-reference">README</a>.</p>
+  <p data-l="zh">完整命令说明见 <a href="https://github.com/YitaoXU/agent-co-work/blob/main/README.zh.md#命令参考">README</a>。</p>
+</section>
+
+<section>
+  <h2><span data-l="en">Default project layout</span><span data-l="zh">默认项目布局</span></h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th><span data-l="en">Path</span><span data-l="zh">路径</span></th><th><span data-l="en">Holds</span><span data-l="zh">放什么</span></th><th>Git</th></tr></thead>
+    <tbody>
+      <tr><td><code>docs/</code></td><td><span data-l="en">Guides, design, accepted conclusions</span><span data-l="zh">指南、设计、已接受的结论</span></td><td><span data-l="en">tracked</span><span data-l="zh">跟踪</span></td></tr>
+      <tr><td><code>docs/plans/</code></td><td><span data-l="en">Numbered plans, long Briefs, index and Brief template</span><span data-l="zh">编号计划、长 Brief、索引和 Brief 模板</span></td><td><span data-l="en">tracked</span><span data-l="zh">跟踪</span></td></tr>
+      <tr><td><code>cowork/</code></td><td><span data-l="en">Daily task records, projects, seats, locks, lessons</span><span data-l="zh">每日任务记录、项目、角色表、锁、经验</span></td><td><span data-l="en">ignored</span><span data-l="zh">忽略</span></td></tr>
+      <tr><td><code>output/&lt;date&gt;/&lt;task&gt;/</code></td><td><span data-l="en">Results, audit findings, logs</span><span data-l="zh">结果、审计发现、日志</span></td><td><span data-l="en">ignored</span><span data-l="zh">忽略</span></td></tr>
+      <tr><td><code>.scratch/ · .tmp/ · .worktrees/</code></td><td><span data-l="en">Host receipts, disposable scratch, isolated checkouts</span><span data-l="zh">本机回执、可丢弃的临时文件、隔离检出</span></td><td><span data-l="en">ignored</span><span data-l="zh">忽略</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note" data-l="en">A project can declare its own layout in <code>AGENTS.md</code>; installs never move existing files.</p>
+  <p class="note" data-l="zh">项目可以在 <code>AGENTS.md</code> 里声明自己的存放规则；安装从不搬动已有文件。</p>
+</section>
+
+<section>
+  <h2><span data-l="en">What's new</span><span data-l="zh">最新更新</span></h2>
+  <div class="log">
+    <div class="rel now">
+      <div class="tag"><span class="sha">2026-11-27</span><span class="what" data-l="en">Latest release</span><span class="what" data-l="zh">最新版本</span></div>
+      <ul data-l="en">
+        <li><code>cw lint</code> no longer flags length or duplicate lines in closed task records; only living records are checked</li>
+        <li>The README start section is one command (<code>claude</code>, or <code>codex</code> / <code>agy</code>)</li>
+        <li>This page</li>
+      </ul>
+      <ul data-l="zh">
+        <li><code>cw lint</code> 不再对已关闭的历史记录提示长度和重复行，只检查还在进行的记录</li>
+        <li>README 的启动段落改为一行命令（<code>claude</code>，或换成 <code>codex</code> / <code>agy</code>）</li>
+        <li>这个网页</li>
+      </ul>
+    </div>
+    <div class="rel">
+      <div class="tag"><span class="sha">77b208f</span><span class="what">plan-docs</span></div>
+      <ul data-l="en">
+        <li>A fresh install creates a <code>docs/plans/README.md</code> index and a Brief template; an existing plans folder is never touched</li>
+        <li>Long or multi-task Briefs go to <code>docs/plans/NNN-*</code>; three-digit numbers are never reused</li>
+        <li>Default .gitignore entries are anchored (<code>/cowork/</code>), so installed skill folders stay trackable</li>
+      </ul>
+      <ul data-l="zh">
+        <li>首次安装会建 <code>docs/plans/README.md</code> 索引和 Brief 模板；已有 plans 目录绝不覆盖</li>
+        <li>长的或跨任务的 Brief 放进 <code>docs/plans/NNN-*</code>，三位编号永不复用</li>
+        <li>.gitignore 默认项改为 <code>/cowork/</code> 这类带锚点的写法，装进项目的技能目录不再被一起忽略</li>
+      </ul>
+    </div>
+    <div class="rel">
+      <div class="tag"><span class="sha">2118127</span><span class="what">cw-fixes + away-mode</span></div>
+      <ul data-l="en">
+        <li>A task that switches to another CLI drops seat options meant for the old one</li>
+        <li><code>cw ack</code> marks reports as read and keeps the original receipts</li>
+        <li>New away-mode skill <code>cowork-away</code></li>
+      </ul>
+      <ul data-l="zh">
+        <li>单个任务换用另一个 CLI 时，自动去掉角色上只适用于原 CLI 的参数</li>
+        <li>新增 <code>cw ack</code>：标记已读的汇报，同时保留原始回执</li>
+        <li>新增离开模式技能 <code>cowork-away</code></li>
+      </ul>
+    </div>
+    <div class="rel">
+      <div class="tag"><span class="sha">368d2f7</span><span class="what">kit-readme2</span></div>
+      <ul data-l="en"><li>README rewritten in English and Chinese</li></ul>
+      <ul data-l="zh"><li>README 中英文版重写</li></ul>
+    </div>
+    <p class="older"><a href="https://github.com/YitaoXU/agent-co-work/commits/main">
+      <span data-l="en">All releases on GitHub</span><span data-l="zh">GitHub 上的全部版本</span></a></p>
+  </div>
+</section>
+
+<footer>
+  <span>agent-co-work</span>
+  <a href="https://github.com/YitaoXU/agent-co-work">github.com/YitaoXU/agent-co-work</a>
+  <a href="https://github.com/YitaoXU/agent-co-work/blob/main/LICENSE">LICENSE</a>
+</footer>
+</main>
+<script>
+document.querySelectorAll('.langs button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var lang = b.getAttribute('data-set');
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    try { localStorage.setItem('lang', lang); } catch (e) {}
+  });
+});
+</script>
+</body>
+</html>

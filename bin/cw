@@ -21,7 +21,8 @@ EMBEDDED = {}  # bundled assets
 POINTER_FILES = ('CLAUDE.md',)
 SKILLS = ('cowork', 'cowork-init', 'cowork-seat', 'cowork-consolidate', 'cowork-away')
 # Keep the dirty-check scope aligned with the release export's kit paths.
-KIT_PATHS = ('README.md', 'README.zh.md', '.gitignore', 'bin', 'skills', 'templates', 'tests')
+KIT_PATHS = ('README.md', 'README.zh.md', '.gitignore', 'index.html', '.nojekyll',
+             'bin', 'skills', 'templates', 'tests')
 KIT_VERSION = 'cowork/kit-version'
 ADAPTERS = {
     'claude': ['claude', '-n', '{name}', '--model', '{model}', '--effort', '{effort}', '{prompt}'],
@@ -1735,7 +1736,8 @@ def lint(root):
         if p in task_paths(root):
             try:
                 task_name(p.stem)
-                header(text, p)
+                if header(text, p)[0]['status'] == 'closed':
+                    continue
             except CWError as exc:
                 violations.append(f'{rel}: {exc}')
             for title, cap in (('Goal', 3), ('State', 10), ('Handover', 20)):

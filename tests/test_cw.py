@@ -2434,6 +2434,76 @@ sys.exit(99)
         for finding in ('Goal has 4', 'State has 11', 'Handover has 21', 'guideline 60', 'guideline 40', 'Duplicate:'):
             self.assertIn(finding, output)
 
+    def test_lint_excludes_closed_task_length_advisories(self):
+        self.install()
+        tasks = {}
+        for status in ('closed', 'running'):
+            p = self.new(status)
+            self.cw('set', p, f'status={status}')
+            text = p.read_text().replace('## Goal\n', '## Goal\n' + 'goal\n' * 4)
+            text = text.replace('## State\n', '## State\n' + 'state\n' * 11)
+            p.write_text(text + '\n## Handover\n' + 'handover\n' * 21)
+            tasks[status] = p
+        before = {p: p.read_bytes() for p in tasks.values()}
+        output = self.cw('lint').stdout
+        self.assertNotIn(tasks['closed'].relative_to(self.root).as_posix() + ':', output)
+        for finding in ('Goal has 4', 'State has 11', 'Handover has 21'):
+            self.assertIn(tasks['running'].relative_to(self.root).as_posix() + ': ' + finding, output)
+        self.assertEqual({p: p.read_bytes() for p in tasks.values()}, before)
+
+    def test_lint_duplicate_advisories_use_only_non_closed_tasks(self):
+        self.install()
+        tasks = [self.new(name) for name in ('first', 'second')]
+        shared = 'An exact duplicate line shared by task records for lint coverage.'
+        for p in tasks:
+            p.write_text(p.read_text() + shared + '\n')
+        for statuses in (('closed', 'closed'), ('closed', 'running'),
+                         ('running', 'closed'), ('running', 'running')):
+            with self.subTest(statuses=statuses):
+                for p, status in zip(tasks, statuses):
+                    self.cw('set', p, f'status={status}')
+                output = self.cw('lint').stdout
+                if statuses == ('running', 'running'):
+                    warning = next(line for line in output.splitlines() if 'Duplicate: ' + shared in line)
+                    for p in tasks:
+                        self.assertIn(p.relative_to(self.root).as_posix() + ':', warning)
+                else:
+                    self.assertNotIn('Duplicate:', output)
+                    self.assertIn('Caps OK.', output)
+
+    def test_lint_keeps_project_advisories_with_running_tasks(self):
+        self.install()
+        self.cw('project', 'new', 'campaign')
+        project = self.root / 'cowork/projects/campaign.md'
+        shared = 'An exact duplicate line shared by project and running task records.'
+        text = project.read_text().replace('## Direction\n', '## Direction\n' + shared + '\n')
+        text = text.replace('## Decisions\n', '## Decisions\n' + 'decision\n' * 21)
+        p = self.new()
+        self.cw('set', p, 'status=running')
+        p.write_text(p.read_text() + shared + '\n')
+        for status in ('active', 'closed'):
+            with self.subTest(project_status=status):
+                project.write_text(text.replace('status: active', f'status: {status}'))
+                output = self.cw('lint').stdout
+                self.assertIn('cowork/projects/campaign.md: Decisions has 21 lines (guideline 20)', output)
+                warning = next(line for line in output.splitlines() if 'Duplicate: ' + shared in line)
+                for path in (project, p):
+                    self.assertIn(path.relative_to(self.root).as_posix() + ':', warning)
+
+    def test_lint_validates_closed_task_headers_and_names(self):
+        self.install()
+        p = self.new('closed')
+        self.cw('set', p, 'status=closed')
+        bad_header = self.new('bad-header')
+        self.cw('set', bad_header, 'status=closed')
+        bad_header.write_text(bad_header.read_text().replace('task: bad-header', 'task: -'))
+        bad_path = p.with_name('-path.md')
+        bad_path.write_bytes(p.read_bytes())
+        output = self.cw('lint', code=1).stdout
+        for path in (bad_header, bad_path):
+            self.assertIn(path.relative_to(self.root).as_posix(), output)
+        self.assertIn('Task names must match', output)
+
     def test_check_status_and_closed_tasks(self):
         self.install(live=True)
         p = self.new()

@@ -1,4 +1,4 @@
-English | [中文](README.zh.md)
+English | [中文](README.zh.md) | [Overview page](https://yitaoxu.github.io/agent-co-work/)
 
 # agent-co-work
 
@@ -23,16 +23,13 @@ Use macOS or Linux. **You never run `cw` or Python yourself**: discuss the work 
 
 ## Start your first coordinator
 
-Open Herdr, use **`+`** in the tab bar to create a space/tab in your project folder, and start whichever coordinator CLI you chose (`claude`, `codex`, or `agy`). A session name is optional (recommended when your CLI supports it).
+Open Herdr, click **`+`** in the tab bar and choose your project folder. In the new tab, start your coordinator CLI:
 
-```text
-1. Open Herdr → + → your project folder.
-2. Start the coordinator CLI you chose (a name is optional), for example:
-   - Claude Code: claude -n yyyymmdd-coordinator   (or: claude)
-   - Codex:       codex
-   - agy:         agy
-3. Paste the coordinator prompt below, filling in <project description>.
+```sh
+claude
 ```
+
+To use another CLI, type `codex` or `agy` instead of `claude`. Naming the session is optional (Claude Code: `claude -n yyyymmdd-coordinator`). Then paste the coordinator prompt below and fill in `<project description>`.
 
 ### Coordinator prompt
 
@@ -242,7 +239,7 @@ Short Briefs stay in the task record. A Brief over about 20 lines, spanning seve
 - Failed coordinator reports append `REPORT (undelivered):`; a later exact payload/destination match appends `REPORT (delivered):` without deleting the failure. After reading a report from State, the coordinator runs `cw ack <taskfile>` to append `REPORT (read):` for each unresolved payload/destination, preserving the history; it prints the acknowledgements and is silent when none are pending. Ordinary first-try coordinator deliveries add no State line. `cw status` flags unresolved receipts, including closed or unassigned tasks; different payloads/destinations stay separate and a later failure reopens the flag.
 - `cw index` regenerates the overview with a 60-line guideline with active tasks/seats grouped by project/line and those closed in the last 7 days. Steps are folded into counts on their parent task lines (same-day parent first, otherwise newest); standalone steps remain in daily records. Overflow writes the overview and warns; consolidate when over.
 - `cw lessons [yyyymmdd]` refreshes daily From tasks from Wrap-up/legacy Debrief lessons and preserves Takeaways.
-- `cw lint` prints the installed kit version, validates headers/project status, and checks nonempty section lines: Goal <=3, State <=10, Handover <=20, project Decisions <=20. Soft file guidelines are lessons README <=40 and overview <=60; archived project histories are excluded from Decisions checks. Lengths and exact duplicate lines longer than 40 characters print `over guideline: ...; consider cowork-consolidate` and exit 0. Keep records concise and consolidate when over. Invalid project/task headers, names, seat schemas and path/symlink escapes still exit 1.
+- `cw lint` prints the installed kit version, validates headers/project status, and checks nonempty section lines: Goal <=3, State <=10, Handover <=20, project Decisions <=20. Soft file guidelines are lessons README <=40 and overview <=60; archived project histories are excluded from Decisions checks. Lengths and exact duplicate lines longer than 40 characters print `over guideline: ...; consider cowork-consolidate` and exit 0. Closed task records are excluded from length and duplicate advisories. Keep records concise and consolidate when over. Invalid project/task headers, names, seat schemas and path/symlink escapes still exit 1.
 
 Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` remain readable. Use `cw set` to update frontmatter.
 
@@ -312,7 +309,7 @@ All `cw` commands (global flag: `--root <dir>`):
 
 ### Development
 
-- **Layout**: `bin/cw` (single stdlib Python 3 script), `skills/` (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`, `cowork-away`), `templates/` (including `plans-readme.md` and `brief-template.md` for a target project's `docs/plans/`), and `tests/`.
+- **Layout**: `bin/cw` (single stdlib Python 3 script), `skills/` (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`, `cowork-away`), `templates/` (including `plans-readme.md` and `brief-template.md` for a target project's `docs/plans/`), `tests/`, `index.html` (public overview), and `.nojekyll` (raw GitHub Pages serving).
 - **Single source of rules**: collaboration rules live only in [skills/cowork/SKILL.md](skills/cowork/SKILL.md) (guideline 150 lines); the other four skills link to it without restating rules.
 - **Checks**: run `python3 -m unittest discover tests` in the kit checkout. Run `cowork/cw lint` in an initialized project to check its collaboration records.
 

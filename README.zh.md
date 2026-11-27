@@ -1,4 +1,4 @@
-[English](README.md) | 中文
+[English](README.md) | 中文 | [概览网页](https://yitaoxu.github.io/agent-co-work/)
 
 # agent-co-work
 
@@ -23,16 +23,13 @@
 
 ## 启动第一个协调员
 
-打开 Herdr，用标签栏中的 **`+`** 在项目文件夹创建 space/tab，并在其中启动你选择的协调员 CLI（`claude`、`codex` 或 `agy`）。会话命名可选（CLI 支持时建议命名）。
+打开 Herdr，点击标签栏的 **`+`**，选择项目文件夹。在新标签页中启动协调员 CLI：
 
-```text
-1. 打开 Herdr → + → 选择项目文件夹。
-2. 启动你选择的协调员 CLI（命名可选），例如：
-   - Claude Code：claude -n yyyymmdd-coordinator   （或：claude）
-   - Codex：      codex
-   - agy：        agy
-3. 粘贴下方协调员提示词，填写 <project description>。
+```sh
+claude
 ```
+
+要用其他 CLI，把 `claude` 换成 `codex` 或 `agy` 即可。会话命名可选（Claude Code：`claude -n yyyymmdd-coordinator`）。然后粘贴下方协调员提示词，填写 `<project description>`。
 
 ### 协调员提示词
 
@@ -240,7 +237,7 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 - 协调员报告失败时追加 `REPORT (undelivered):`；随后相同正文和目的地送达时追加 `REPORT (delivered):`，保留失败记录。协调员从 State 读完报告后运行 `cw ack <taskfile>`，为每个未解决的正文/目的地追加 `REPORT (read):` 并保留历史；命令打印确认项，无待确认项时不输出。普通首次成功不新增 State 行。`cw status` 标记未解决回执，包括已关闭或未分配终端的任务；不同正文/目的地互不消除，再次失败会重新标记。
 - `cw index` 生成以 60 行为建议长度的概览：按项目/线路分组的活跃 task/seat，以及近 7 天关闭的记录。step 汇总为父任务行上的计数（同日父任务优先，否则最新）；无父任务的 step 留在每日记录中。超出时仍写入概览并告警；应进行整理。
 - `cw lessons [yyyymmdd]` 从 Wrap-up/旧 Debrief 刷新每日 From tasks，保留 Takeaways。
-- `cw lint` 打印安装版本、校验头部和项目状态，并检查非空节行数：Goal <=3、State <=10、Handover <=20、项目 Decisions <=20。文件建议长度为教训 README <=40、概览 <=60；项目历史归档不受 Decisions 检查。长度超出与超过 40 字符的完全重复行输出 `over guideline: ...; consider cowork-consolidate`，退出码为 0。保持简洁，超出时整理。项目/任务头部、名称、席位格式与路径/符号链接越界仍以退出码 1 失败。
+- `cw lint` 打印安装版本、校验头部和项目状态，并检查非空节行数：Goal <=3、State <=10、Handover <=20、项目 Decisions <=20。文件建议长度为教训 README <=40、概览 <=60；项目历史归档不受 Decisions 检查。长度超出与超过 40 字符的完全重复行输出 `over guideline: ...; consider cowork-consolidate`，退出码为 0。已关闭的任务记录不参与长度和重复行建议检查。保持简洁，超出时整理。项目/任务头部、名称、席位格式与路径/符号链接越界仍以退出码 1 失败。
 
 任务模板包含 `args: -`，旧 `size:` 和 `debrief` / `## Debrief` 仍可读取。用 `cw set` 修改头部。
 
@@ -310,7 +307,7 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 
 ### 开发说明
 
-- **目录结构**：`bin/cw`（单个纯标准库 Python 3 脚本）、`skills/`（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）、`templates/`（包含用于目标项目 `docs/plans/` 的 `plans-readme.md` 和 `brief-template.md`）与 `tests/`。
+- **目录结构**：`bin/cw`（单个纯标准库 Python 3 脚本）、`skills/`（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）、`templates/`（包含用于目标项目 `docs/plans/` 的 `plans-readme.md` 和 `brief-template.md`）、`tests/`、`index.html`（公开概览页）与 `.nojekyll`（GitHub Pages 原样提供文件）。
 - **单一规则来源**：协作规则只维护在 [skills/cowork/SKILL.md](skills/cowork/SKILL.md)（建议不超过 150 行）；其余四个技能仅链接至此，不重复陈述规则。
 - **日常校验**：在 kit 仓库中运行 `python3 -m unittest discover tests`；在已初始化的项目中运行 `cowork/cw lint`，校验该项目的协作记录。
 
