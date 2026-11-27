@@ -283,6 +283,71 @@ class CWTests(unittest.TestCase):
         self.assertEqual(before, self.snapshot())
         self.assertEqual(self.calls(), [])
 
+    def test_fresh_init_creates_plan_docs_from_bundled_templates(self):
+        targets = {'docs/plans/README.md': 'plans-readme.md',
+                   'docs/plans/brief-template.md': 'brief-template.md'}
+        before = self.snapshot()
+        plan = self.cw('init').stdout
+        for path in targets:
+            self.assertIn(f'{path}: create', plan)
+        self.assertEqual(before, self.snapshot())
+        self.cw('init', '--apply')
+        for path, template in targets.items():
+            self.assertEqual((self.root / path).read_bytes(), (REPO / 'templates' / template).read_bytes())
+        index = (self.root / 'docs/plans/README.md').read_text()
+        self.assertIn('Next free number: 001\n', index)
+        self.assertTrue(index.endswith('| # | Plan | Brief | State |\n|---|---|---|---|\n'))
+        self.assertEqual(self.calls(), [])
+
+    def test_init_preserves_existing_plans_case_insensitively_without_merging(self):
+        for case, (docs, plans) in enumerate((('docs', 'plans'), ('Docs', 'plans'), ('dOcS', 'pLaNs'))):
+            for files in ((), ('README.md',), ('README.md', 'brief-template.md', 'nested/note.md')):
+                with self.subTest(docs=docs, plans=plans, files=files), \
+                        mock.patch.object(self, 'root', self.work / f'existing-{case}-{len(files)}'):
+                    folder = self.root / docs / plans
+                    folder.mkdir(parents=True)
+                    for name in files:
+                        path = folder / name
+                        path.parent.mkdir(exist_ok=True)
+                        path.write_bytes(b'Project-owned content\r\n\xff\n')
+                        path.chmod(0o640)
+                    before = self.snapshot()
+                    entries = sorted(str(p.relative_to(folder)) for p in folder.rglob('*'))
+                    for flags in ((), ('--apply',), ('--upgrade', '--apply')):
+                        output = self.cw('init', *flags).stdout
+                        self.assertNotIn('no plans folder found', output)
+                        self.assertEqual(before, {p: value for p, value in self.snapshot().items()
+                                                  if p.split('/')[0].casefold() == 'docs'})
+                        self.assertEqual(entries, sorted(str(p.relative_to(folder)) for p in folder.rglob('*')))
+                        self.assertEqual([p.name for p in self.root.iterdir() if p.name.casefold() == 'docs'], [docs])
+        self.assertEqual(self.calls(), [])
+
+    def test_existing_init_and_upgrade_do_not_recreate_missing_plan_docs(self):
+        self.install()
+        shutil.rmtree(self.root / 'docs/plans')
+        before = self.snapshot()
+        note = 'Note: existing installation or --upgrade; no plans folder found; docs/plans/ unchanged.'
+        for flags in ((), ('--apply',), ('--upgrade',), ('--upgrade', '--apply')):
+            output = self.cw('init', *flags).stdout
+            self.assertEqual(output.count(note), 1)
+            self.assertNotIn('docs/plans/README.md: create', output)
+            self.assertNotIn('docs/plans/brief-template.md: create', output)
+            self.assertFalse((self.root / 'docs/plans').exists())
+            self.assertEqual(before, self.snapshot())
+        self.assertEqual(self.calls(), [])
+
+    def test_upgrade_without_install_does_not_create_plan_docs(self):
+        before = self.snapshot()
+        note = 'Note: existing installation or --upgrade; no plans folder found; docs/plans/ unchanged.'
+        plan = self.cw('init', '--upgrade').stdout
+        self.assertEqual(plan.count(note), 1)
+        self.assertEqual(before, self.snapshot())
+        output = self.cw('init', '--upgrade', '--apply').stdout
+        self.assertEqual(output.count(note), 1)
+        self.assertFalse((self.root / 'docs').exists())
+        self.assertTrue((self.root / 'cowork/cw').is_file())
+        self.assertEqual(self.calls(), [])
+
     def test_init_rerun_on_later_day_creates_no_seat(self):
         self.install()
         p = self.root / f'cowork/{DAY}'
@@ -366,6 +431,25 @@ class CWTests(unittest.TestCase):
                              (REPO / 'skills/cowork-away/SKILL.md').read_bytes())
         self.assertTrue(os.access(self.root / 'cowork/cw', os.X_OK))
 
+    def test_fresh_ignore_anchors_leave_installed_skills_visible_to_git(self):
+        for root, script in ((self.root, CW), (self.work / 'fresh-vendored', self.root / 'cowork/cw')):
+            with self.subTest(script=script):
+                root.mkdir(exist_ok=True)
+                subprocess.run(['git', 'init', '--quiet', str(root)], env=self.env, check=True, capture_output=True)
+                self.cw('init', '--apply', script=script, cwd=root)
+                visible = ['.agents/skills/cowork/SKILL.md', '.claude/skills/cowork/SKILL.md']
+                for path in visible:
+                    self.assertTrue((root / path).is_file())
+                ignored = [f'cowork/{DAY}/coordinator.md', 'output/x', '.scratch/x', '.tmp/x', '.worktrees/x']
+                for paths, code in ((visible, 1), (ignored, 0)):
+                    result = subprocess.run(['git', '-c', f'core.excludesFile={os.devnull}', 'check-ignore',
+                                             '--no-index', *paths], cwd=root, env=self.env, text=True, capture_output=True)
+                    self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+                    self.assertEqual(result.stdout.splitlines(), [] if code else paths)
+                self.assertEqual((root / '.gitignore').read_bytes(),
+                                 b'/cowork/\n/output/\n/.scratch/\n/.tmp/\n/.worktrees/\n')
+        self.assertEqual(self.calls(), [])
+
     def test_vendored_script_is_standalone(self):
         self.install()
         isolated = self.work / 'isolated'
@@ -374,7 +458,13 @@ class CWTests(unittest.TestCase):
         shutil.copyfile(self.root / 'cowork/cw', script)
         fresh = self.work / 'fresh'
         fresh.mkdir()
+        (fresh / 'templates').mkdir()
+        for template in ('plans-readme.md', 'brief-template.md'):
+            (fresh / 'templates' / template).write_text('Project-owned template\n')
         self.cw('init', '--apply', script=script, cwd=fresh)
+        for path, template in (('README.md', 'plans-readme.md'), ('brief-template.md', 'brief-template.md')):
+            self.assertEqual((fresh / 'docs/plans' / path).read_bytes(), (REPO / 'templates' / template).read_bytes())
+            self.assertEqual((fresh / 'templates' / template).read_text(), 'Project-owned template\n')
         for base in ('.agents/skills', '.claude/skills'):
             self.assertEqual((fresh / base / 'cowork-away/SKILL.md').read_bytes(),
                              (REPO / 'skills/cowork-away/SKILL.md').read_bytes())

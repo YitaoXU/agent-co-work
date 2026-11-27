@@ -44,17 +44,25 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(self.calls(), [])
 
     def test_fresh_ignore_plan_partial_crlf_and_idempotence(self):
-        cases = ((b'# retained\r\noutput/\r\n.tmp/\r\ncustom', 'cowork/, .scratch/, .worktrees/',
-                  b'\r\ncowork/\r\n.scratch/\r\n.worktrees/\r\n'),
-                 (b'local-files\r\ncache', 'cowork/, output/, .scratch/, .tmp/, .worktrees/',
-                  b'\r\ncowork/\r\noutput/\r\n.scratch/\r\n.tmp/\r\n.worktrees/\r\n'))
+        cases = ((b'# retained\r\ncowork/ \t\r\n/.tmp/\t \r\ncustom', '/output/, /.scratch/, /.worktrees/',
+                  b'\r\n/output/\r\n/.scratch/\r\n/.worktrees/\r\n'),
+                 (b'local-files\r\ncache', '/cowork/, /output/, /.scratch/, /.tmp/, /.worktrees/',
+                  b'\r\n/cowork/\r\n/output/\r\n/.scratch/\r\n/.tmp/\r\n/.worktrees/\r\n'),
+                 (b'/cowork/ \t\noutput/\t\n/.scratch/ \n.tmp/\t \n/.worktrees/\t\n', '', b''),
+                 (b'cowork/\noutput/\n.scratch/\n.tmp/\n.worktrees/\n', '', b''),
+                 (b' cowork/\n/output/ # comment\nnested/.scratch/\n.tmp/*\n# /.worktrees/',
+                  '/cowork/, /output/, /.scratch/, /.tmp/, /.worktrees/',
+                  b'\n/cowork/\n/output/\n/.scratch/\n/.tmp/\n/.worktrees/\n'))
         for i, (original, additions, suffix) in enumerate(cases):
             with self.subTest(original=original), mock.patch.object(self, 'root', self.work / f'fresh-{i}'):
                 self.root.mkdir()
                 ignore = self.root / '.gitignore'
                 ignore.write_bytes(original)
                 plan = self.cw('init').stdout
-                self.assertIn('.gitignore: add ' + additions, plan)
+                if additions:
+                    self.assertIn('.gitignore: add ' + additions, plan)
+                else:
+                    self.assertNotIn('.gitignore: add ', plan)
                 self.assertEqual(ignore.read_bytes(), original)
                 self.install()
                 expected = original + suffix
@@ -72,9 +80,11 @@ class RuleTests(unittest.TestCase):
                 ignore.unlink()
             else:
                 ignore.write_bytes(content)
-            for flags in ((), ('--upgrade',)):
-                result = self.cw('init', *flags, '--apply')
-                self.assertIn('missing defaults: cowork/', result.stdout)
+            missing = '/cowork/, /.scratch/, /.tmp/, /.worktrees/' if content else '/cowork/, /output/, /.scratch/, /.tmp/, /.worktrees/'
+            note = 'Note: existing installation or --upgrade; .gitignore unchanged; missing defaults: ' + missing
+            for flags in ((), ('--apply',), ('--upgrade',), ('--upgrade', '--apply')):
+                result = self.cw('init', *flags)
+                self.assertEqual(result.stdout.count(note + '\n'), 1)
                 self.assertEqual(ignore.read_bytes() if ignore.exists() else None, content)
 
     def test_report_retry_preserves_failure_matches_payload_and_reflags(self):

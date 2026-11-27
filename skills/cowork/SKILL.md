@@ -35,7 +35,9 @@ When the user will be away, follow [cowork-away](../cowork-away/SKILL.md); the u
 Multiple approved tasks may run in parallel, on either line; one task's Wrap-up does not block another approved task.
 `cw start` requires a task's user approval and status approved/running/blocked; running or blocked tasks may relaunch. A worker step with a parent needs that parent to be an approved task with one of those statuses; advisor steps may run before approval to prepare the Plan and Brief. Standalone steps and seats are not task-gated.
 Write a Goal and an unambiguous numbered Brief (action, done-condition meaning used/verified, defaults, named phase transitions, calibrated stop gates, outputs); cite project docs or plan links rather than restating them.
+Keep a Brief in the task record by default; use `docs/plans/` when it is long (over about 20 lines), spans several tasks, or should remain project documentation, then make the record's Brief one line citing it plus any task-local defaults.
 Carry out the Brief in order, settling routine step defaults and keeping State as a concise rolling summary (guideline <=10 lines); before rolling up State, archive detailed history and CLI receipts verbatim to `output/<yyyymmdd>/<task>/log.md` and link it.
+At named phase transitions and at Wrap-up/close, the coordinator updates the plan's README row with one short state sentence (Ready, Running, Done with the headline, Closed, Superseded); execution detail stays in State and output logs.
 Finish each task with a Wrap-up (result, where, 1-3 `- lesson:` lines, proposed next, user decision); never infer the user's decision, and only the coordinator sets `status: wrap-up` or `closed` after acceptance.
 
 ## Resources
@@ -50,7 +52,8 @@ Only the lock gates the successor's exclusive phase; record resource release, da
 
 ## Records and messages
 
-Project repos commit code, data, and living `docs/` by default; `cowork/`, `output/`, `.scratch/`, `.tmp/`, and `.worktrees/` are gitignored by fresh `cw init` (existing tracked repos keep their choice; projects may declare a "where things go" override in `AGENTS.md` without moving existing files merely to match defaults).
+Project repos commit code, data, and living `docs/` by default; `/cowork/`, `/output/`, `/.scratch/`, `/.tmp/`, and `/.worktrees/` are gitignored by fresh `cw init` (existing tracked repos keep their choice; projects may declare a "where things go" override in `AGENTS.md` without moving existing files merely to match defaults).
+Plans and long Briefs live in `docs/plans/` with a README index and `brief-template.md`: `NNN-<slug>.md` and `NNN-<slug>-brief.md` share a three-digit number, never reused, including Brief-only work. Optional per-line subfolders each have their own README; numbering is per folder unless the parent README declares it shared.
 Daily records at `cowork/yyyymmdd/<task>.md` never move. Write structured task outputs, audit findings, and logs directly to `output/<yyyymmdd>/<task>/`; use `.scratch/` for host-local operational receipts, `.tmp/` for disposable scratch (never cite `.tmp/` as durable evidence; delete only after exporting needed evidence), and `docs/archive/` for merged superseded prose.
 Executed outputs, logs, and receipts are never rewritten, renamed, or deleted; append `CORRECTION <date>: <what>; <evidence>; supersedes <line>` to a wrong record, and redo a wrong output as a newly named run stating what it supersedes.
 Edit living conclusions and docs directly with a dated Wrap-up or Decisions note; never rerun passed acceptance (append corrections), never treat training/selection metrics as independent acceptance, and label untested layers explicitly.

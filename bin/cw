@@ -706,7 +706,8 @@ def init(root, args):
         raise CWError('Seats already exist; use cw seat set to change them.')
     assets = {f'templates/{name}': asset(f'templates/{name}') for name in (
         'seats.tsv', 'task.md', 'project.md', 'agents-block.md', 'start-prompt.txt', 'discuss-prompt.txt',
-        'handover-prompt.txt', 'lessons-day.md', 'lessons-readme.md', 'cowork-readme.md')}
+        'handover-prompt.txt', 'lessons-day.md', 'lessons-readme.md', 'cowork-readme.md',
+        'plans-readme.md', 'brief-template.md')}
     assets.update({f'skills/{s}/SKILL.md': asset(f'skills/{s}/SKILL.md') for s in SKILLS})
     source = read(Path(__file__))
     source = re.sub(r'^EMBEDDED = .*  # bundled assets$', lambda _: 'EMBEDDED = ' + repr(assets) + '  # bundled assets', source, count=1, flags=re.M)
@@ -727,6 +728,15 @@ def init(root, args):
         'cowork/lessons/README.md': asset('templates/lessons-readme.md'),
     }
     fresh = not inside(root, 'cowork/cw').exists()
+    plans_exist = any(path.name.casefold() == 'plans'
+                      for docs in root.glob('*') if docs.name.casefold() == 'docs' and docs.is_dir()
+                      for path in docs.iterdir())
+    if not plans_exist:
+        if fresh and not args.upgrade:
+            contents['docs/plans/README.md'] = assets['templates/plans-readme.md']
+            contents['docs/plans/brief-template.md'] = assets['templates/brief-template.md']
+        else:
+            print('Note: existing installation or --upgrade; no plans folder found; docs/plans/ unchanged.')
     version = kit_version()
     # A plain init must not claim that an older installation has been upgraded.
     if fresh or args.upgrade:
@@ -747,8 +757,9 @@ def init(root, args):
     ignore = inside(root, '.gitignore')
     old_ignore = read(ignore) if ignore.exists() else ''
     new_ignore = old_ignore
-    missing = [entry for entry in ('cowork/', 'output/', '.scratch/', '.tmp/', '.worktrees/')
-               if entry not in old_ignore.splitlines()]
+    ignore_entries = {line.rstrip() for line in old_ignore.splitlines()}
+    missing = [entry for entry in ('/cowork/', '/output/', '/.scratch/', '/.tmp/', '/.worktrees/')
+               if entry not in ignore_entries and entry[1:] not in ignore_entries]
     if missing and fresh and not args.upgrade:
         newline = '\r\n' if '\r\n' in old_ignore else '\n'
         new_ignore += (newline if old_ignore and not old_ignore.endswith('\n') else '') + newline.join(missing) + newline

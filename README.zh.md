@@ -124,6 +124,7 @@ flowchart TD
 | 路径 | 内容 | 首次安装时 Git 跟踪 | 持久证据 |
 |---|---|---|---|
 | `docs/` | 日常指南、设计、已接受结论 | 跟踪 | 是 |
+| `docs/plans/` | 编号计划、长 Brief、README 索引和 Brief 模板 | 跟踪 | 是 |
 | `docs/archive/` | 过时文字稿的带日期汇编 | 跟踪 | 是 |
 | `cowork/` | 每日记录、项目、席位、锁、教训 | 忽略 | 是，本地记录 |
 | `output/<yyyymmdd>/<task>/` | 结果、审计发现、日志、汇总的 `log.md` | 忽略 | 是，保护引用路径 |
@@ -175,7 +176,9 @@ cowork/cw lint
 
 **Kit 版本**：首次安装的计划显示 `kit: to <sha>`，版本有变化的升级显示 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出已安装版本，供你与计划核对。仅在无告警和错误时输出 `Caps OK.`；长度或重复行提示则显示 `Validation OK; <n> over guideline.`。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。`init` 对 kit 未提交改动和开发仓库仍仅告警；`upgrade` 则拒绝这些 clone。
 
-**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将五个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）复制到 `.claude/skills/` 和 `.agents/skills/`；首次安装时向 `.gitignore` 追加缺失的 `cowork/`、`output/`、`.scratch/`、`.tmp/`、`.worktrees/`（计划中列出），向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。已有安装的普通 init 和 `--upgrade` 逐字节保留 `.gitignore`，缺少默认项时提示。普通 init 保留其他已有内容（包括标记指令块以外的已有项目文字），对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
+**`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将五个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）复制到 `.claude/skills/` 和 `.agents/skills/`；首次安装时向 `.gitignore` 追加缺失的 `/cowork/`、`/output/`、`/.scratch/`、`/.tmp/`、`/.worktrees/`（计划中列出；去除行尾空白后，带或不带根目录锚点的已有行均算存在），向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。已有安装的普通 init 和 `--upgrade` 逐字节保留 `.gitignore`，缺少默认项时提示。在改用锚点默认项之前安装的项目可能写的是不带锚点的 `cowork/`，它也会忽略 `.agents/skills/cowork/` 和 `.claude/skills/cowork/`；如需跟踪已安装的技能，请手动改为 `/cowork/`。普通 init 保留其他已有内容（包括标记指令块以外的已有项目文字），对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
+
+首次安装还会在计划中列出并用随附模板创建 `docs/plans/README.md` 和 `docs/plans/brief-template.md`，前提是不存在 plans 目录（检查不区分大小写，包括 `Docs/plans/`）。已有 plans 目录绝不覆盖或合并。安装后的普通 init 和 `--upgrade` 不创建也不触及这两个文件；缺少 plans 目录时打印一条提示。
 
 **使用服务器的项目**：如果项目在服务器上运行作业，`cowork-init` 的可选步骤会询问 [templates/server.md](templates/server.md) 中的每个占位符，填好规则供用户确认后，保存到 `docs/server.md`（或项目声明的文档路径）。已有服务器指南绝不覆盖，并在 `AGENTS.md` 的标记区块之外添加指针。硬件信息在沙箱外探测前保持未验证状态。
 
@@ -229,6 +232,8 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 ### 记录、Wrap-up 与经验教训
 
 [记录规则](skills/cowork/SKILL.md#records-and-messages) 定义写入归属与不可变证据；[cowork-consolidate](skills/cowork-consolidate/SKILL.md) 覆盖 State、Decisions/Plan、教训、概览/交接、归档、输出/临时文件和记忆。
+
+短 Brief 留在任务记录中。超过约 20 行、跨多个任务或需要作为项目文档保留的 Brief 放在 `docs/plans/`，任务记录引用它。计划使用 `NNN-<slug>.md`，Brief 使用 `NNN-<slug>-brief.md`，三位编号永不复用。可按工作线设子目录，各自维护 README 索引和编号，除非父索引声明共用编号。协调员在命名阶段转换和 Wrap-up/结项时更新计划 README 的 State 单元格，每格只写一句简短状态；执行细节保留在任务 State 和 `output/<yyyymmdd>/<task>/log.md`。
 
 - `cw report "<conclusion>; <path>"` 向协调员发送带任务前缀的消息。`--to <task>` 优先解析发送方同日记录，否则使用最新同名记录，发送给活跃目标并抄送协调员；目标缺失则只通知协调员。每个直接收件方都有送达回执。
 - 报告发送最多尝试三次，每次约 180 秒，整条命令共用 10 分钟预算（含 `--to` 的两个收件方）。每次重试前读取目标屏幕；正文已显示则视为送达，不再重发。进度写入 stderr，仅最终结果产生回执。任务投递、按键、启动及其他通知保持原有行为。
@@ -305,7 +310,7 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 
 ### 开发说明
 
-- **目录结构**：`bin/cw`（单个纯标准库 Python 3 脚本）、`skills/`（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）、`templates/` 与 `tests/`。
+- **目录结构**：`bin/cw`（单个纯标准库 Python 3 脚本）、`skills/`（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）、`templates/`（包含用于目标项目 `docs/plans/` 的 `plans-readme.md` 和 `brief-template.md`）与 `tests/`。
 - **单一规则来源**：协作规则只维护在 [skills/cowork/SKILL.md](skills/cowork/SKILL.md)（建议不超过 150 行）；其余四个技能仅链接至此，不重复陈述规则。
 - **日常校验**：在 kit 仓库中运行 `python3 -m unittest discover tests`；在已初始化的项目中运行 `cowork/cw lint`，校验该项目的协作记录。
 
