@@ -27,7 +27,7 @@ Use `kind: task|step|seat`, `project: <name>|-`, `line: main|side|-` and `draft 
 1. Direction: the user and coordinator agree the project's Direction.
 2. Plan: coordinator drafts the numbered tasks, consults the advisor as needed (recording adopted points and why), and discusses with the user; record user approval as a dated Decisions line.
 3. Before every task: coordinator drafts its Brief (with advisor review as needed), then the user approves it (`approved: user, yyyy-mm-dd`, `status: approved`). No unapproved automatic continuation.
-4. Run: coordinator dispatches steps and settles step-level questions. Hard questions (science, scope, budget, risk, a failed gate) go to the user before the affected work continues. Follow the review and acceptance rules below.
+4. Run: coordinator checks `git status` before dispatch, dispatches steps and settles step-level questions. Hard questions (science, scope, budget, risk, a failed gate) go to the user before the affected work continues. Follow the review and acceptance rules below.
 5. Wrap-up: coordinator drafts the Wrap-up (with advisor input as needed), sends the user a short conclusion-first summary (done, result, evidence path, next, decision needed), adjusts Direction/Plan after user decision, and records it.
 6. Repeat from step 3 until the user closes the project; put durable conclusions in the project's own docs.
 
@@ -38,7 +38,7 @@ Write a Goal and an unambiguous numbered Brief (action, done-condition meaning u
 Keep a Brief in the task record by default; use `docs/plans/` when it is long (over about 20 lines), spans several tasks, or should remain project documentation, then make the record's Brief one line citing it plus any task-local defaults.
 Carry out the Brief in order, settling routine step defaults and keeping State as a concise rolling summary (guideline <=10 lines); before rolling up State, archive detailed history and CLI receipts verbatim to `output/<yyyymmdd>/<task>/log.md` and link it.
 At named phase transitions and at Wrap-up/close, the coordinator updates the plan's README row with one short state sentence (Ready, Running, Done with the headline, Closed, Superseded); execution detail stays in State and output logs.
-Finish each task with a Wrap-up (result, where, 1-3 `- lesson:` lines, proposed next, user decision); never infer the user's decision, and only the coordinator sets `status: wrap-up` or `closed` after acceptance.
+Finish each task with a Wrap-up (result, where, 1-3 `- lesson:` lines, proposed next, user decision, and `Branches and worktrees`: removed at merge or each retained one with its reason); never infer the user's decision, and only the coordinator sets `status: wrap-up` or `closed` after acceptance.
 
 ## Resources
 
@@ -72,12 +72,13 @@ An undelivered report appends `REPORT (undelivered):` to `State` and prints a re
 - Preserve compatibility of retained artifacts and comparability of evaluated runs: changes to core compute apply only to new runs, and runs record their code commit.
 - Scale checks to the change; write necessary tests only (nontrivial pure logic, bug regressions, and preflight/end-to-end checks on critical paths rather than mocks alone; delete tests with superseded code; docs need link/lint checks, not code tests).
 - Run jobs through shared project entry points with explicit stop/budget limits (no per-run wrapper scripts), activate the project environment in the same shell, and keep test/smoke outputs separated from real run outputs.
+- Name every created branch/worktree in State (`cw new --worktree` also records the worktree header). Merge a task branch, run `git worktree remove` then `git branch -d` in the same step, before task close; `--force` or `-D` requires the user. The coordinator accepts no Wrap-up with an unlisted retained branch/worktree. Never remove a worktree with uncommitted or ignored files, a process using it, a path cited as evidence by a live record, or a location outside the root without the user's approval.
 
 ## Escalation and review
 
 At a stop condition, write `BLOCKED: <reason>` in State and report to the coordinator.
 The coordinator resolves step questions and takes hard questions to the user as specified in the task loop.
-The coordinator may answer harmless in-project prompts for the user (project-root/assigned-worktree trust, reading files, running `cowork/cw`, running programs and tests inside the project); deletions, data moves, destructive Git, pushes, external writes, and any risky or unrecognized prompt go to the user without pressing keys.
+The coordinator may answer harmless in-project prompts for the user (project-root/assigned-worktree trust, reading files, running `cowork/cw`, running programs and tests inside the project); deletions, data moves, destructive Git, unauthorized publication (see below), other external writes, and any risky or unrecognized prompt go to the user without pressing keys.
 Automation handles only verified deterministic dialogs (project-root trust, assigned-worktree trust during `cw start`, and plain `cowork/cw` commands); standalone `cw approve <t>` stays root-only; for other harmless prompts, read the full screen first (`hc read`) before answering.
 On an unexpected failure, state-changing work (launches, shared environments, deleting or moving data) stops and reports; re-runnable work (tests, analysis, scratch outputs) fixes its own code and continues, stopping only at a decision gate, a frozen value, a shared dependency or a budget limit.
 Check each detached long job using a monitoring schedule owned by its task (e.g. launchd or cron); these are the scheduled checks above, by default every 2 h and every 10 min near its end (user, 2026-11-26).
@@ -89,9 +90,9 @@ Audit rigor matches change risk (coordinator gives final acceptance without reru
 - Ordinary code: worker runs relevant tests; coordinator reviews the diff and test output.
 - Critical paths (training/sampling/scoring, releases, safety/approval/lock code): fresh-session `auditor` (never the author) runs code and writes findings to `output/<yyyymmdd>/<task>/`; coordinator accepts from those findings.
 - Compute/GPU arms: pre-launch Brief/config review, worker early acceptance gate (e.g. first collection/checkpoint), no rerun of passed runs, and independent reading only for quantitative claims.
-Workers and auditors never stage or commit; the coordinator commits after acceptance (user, 2026-11-25).
-Workers never run destructive Git commands: `git reset --hard`, `git checkout -- .`, `git restore .`, `git clean`, or `git push --force`.
-Prefer scope separation over worktrees: protect critical runtime scopes with a resource lock (one integrator at a time) and commit unlocked scopes with explicit paths (`git add <paths>`, never `git add -A`). Use `cw new --worktree` only when concurrent edits overlap files or need checkout isolation, and remove retired branches and worktrees promptly upon merge or task close.
+Workers and auditors never stage or commit; the coordinator commits each accepted step with explicit paths (`git add <paths>`, never `git add -A`), checks `git diff --cached --stat` lists only those paths, and defaults to a `<task>: ` commit prefix unless the project AGENTS.md specifies another convention. Publish only by the path authorized in project Decisions or AGENTS.md (a Git remote/branch or a project publishing tool); other paths, force pushes and history rewrites require the user's approval.
+Workers never run `git reset --hard`, `git checkout -- .`, `git restore .`, `git clean`, `git stash`, `git push --force`, or history rewrites.
+Keep one trunk; other branches are short-lived steps back to it. Prefer scope separation over worktrees: protect critical runtime scopes with a resource lock (one integrator at a time); use `cw new --worktree` only when concurrent edits overlap files or need checkout isolation. In local checkouts, seats work only in the project root or their assigned `.worktrees/<task>`, never agent-app worktrees or ad-hoc checkouts; a project may document a remote review-tree location. Prefer `git archive` exports for review and publication copies.
 
 ## Size limits, consolidation, and handover
 
@@ -99,5 +100,5 @@ Run `cowork/cw lint`: soft length guidelines are `Goal <=3`, `State <=10`, `Hand
 Summarize and archive every accumulating document promptly (never leave one to grow unbounded); run `cowork-consolidate` at task Wrap-up when guidelines are near or exceeded, weekly, or at project milestones:
 - `State` -> roll up into `output/<yyyymmdd>/<task>/log.md` (verbatim CLI receipts first); project `Decisions` -> archive older lines to `cowork/projects/archive/<name>-history.md`; `lessons/README.md` -> distill weekly from daily `cowork/lessons/yyyymmdd.md` (roll older batches to `cowork/lessons/archive/yyyy-mm.md`).
 - `docs/archive/` -> merge superseded prose drafts into dated rollups (never rewrite executed findings/receipts); `output/` -> distill conclusions into `docs/` and prune unreferenced intermediates only under project policy; agent memory -> promote durable rules to `docs/`/`AGENTS.md` and prune stale entries (`<=80` lines).
-Initiate coordinator handover around 60% context use, after a Wrap-up, or at end of day: record recovery context in the outgoing `Handover` section and run `cw handover context` (same seat) or `cw handover tokens` (to/from `coordinator-alt`).
+Initiate coordinator handover around 60% context use, after a Wrap-up, or at end of day: record recovery context, uncommitted paths and their owner tasks in the outgoing `Handover` section and run `cw handover context` (same seat) or `cw handover tokens` (to/from `coordinator-alt`).
 The successor uses its own seat file, reads the outgoing record, `cowork/README.md`, `cowork/projects/`, and active tasks, then runs `cw handover --accept` to take over `cowork/coordinator.addr` and notify the outgoing coordinator.

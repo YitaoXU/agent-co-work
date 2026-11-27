@@ -16,3 +16,4 @@ approved: -
 ## Brief
 ## State
 ## Wrap-up
+- Branches and worktrees: -

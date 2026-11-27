@@ -1356,6 +1356,119 @@ def ack(root, args):
         print('\n'.join(receipts))
 
 
+def read_git(root, *args, return_code=False):
+    """Optional, read-only Git queries shared by the advisory checks."""
+    try:
+        result = subprocess.run(['git', '--no-optional-locks', '-C', str(root), *args],
+                                text=True, errors='surrogateescape', capture_output=True)
+        return result.returncode if return_code else (result.stdout if result.returncode == 0 else None)
+    except OSError:
+        return None
+
+
+def git_worktrees(root):
+    output = read_git(root, 'worktree', 'list', '--porcelain', '-z') or ''
+    # NUL records preserve paths containing whitespace, quotes or newlines.
+    return [dict(field.partition(' ')[::2] for field in block.split('\0'))
+            for block in output.rstrip('\0').split('\0\0') if block]
+
+
+def git_hygiene(root, dirty=False):
+    """Return trunk and labeled items, never permission to remove anything."""
+    if (read_git(root, 'rev-parse', '--is-inside-work-tree') or '').strip() != 'true':
+        return None, []
+    trunk = (read_git(root, 'symbolic-ref', '--quiet', 'HEAD') or '').strip()
+    trunk_name = trunk.removeprefix('refs/heads/') or '(detached HEAD; ancestry skipped)'
+    tasks, active_paths, active_branches = {}, set(), set()
+    for path in task_paths(root):
+        try:
+            values = header(read(inside(root, path)), path)[0]
+        except CWError:
+            # Existing validation owns malformed records; don't call them missing.
+            tasks[path.stem] = {}
+            continue
+        tasks[path.stem] = values
+        worktree = values.get('worktree', '-')
+        if values['status'] != 'closed' and worktree != '-':
+            assigned = (root / worktree).resolve()
+            active_paths.add(assigned)
+            active_branches.add('refs/heads/' + assigned.name)
+    worktrees = git_worktrees(root)
+    checked_out = {record['branch'] for record in worktrees if 'branch' in record}
+    allowed = (root / '.worktrees').resolve()
+    items = []
+    for index, record in enumerate(worktrees):
+        if 'worktree' not in record:
+            continue
+        path = Path(record['worktree']).resolve()
+        task = tasks.get(path.name) if path.parent == allowed else None
+        active = path in active_paths or (task is not None and task.get('status') != 'closed')
+        if active and 'branch' in record:
+            active_branches.add(record['branch'])
+        labels = []
+        if 'prunable' in record:
+            labels.append('prunable')
+        if index != 0 and not path.is_relative_to(root):
+            labels.append('outside root')
+        elif index != 0 and not path.is_relative_to(allowed):
+            labels.append('outside .worktrees/')
+        if index != 0 and path != root:
+            if not active and trunk and record.get('HEAD') and read_git(
+                    root, 'merge-base', '--is-ancestor', record['HEAD'], trunk) is not None:
+                labels.append('merged worktree')
+            if path.parent == allowed and not active:
+                if task is None or task.get('status') == 'closed':
+                    labels.append('missing task' if task is None else 'closed task')
+        if labels:
+            detail = ''
+            if dirty and 'prunable' not in record and path.is_dir():
+                output = read_git(path, 'status', '--porcelain=v1', '-z', '--untracked-files=all')
+                if output is None:
+                    detail = 'uncommitted=unknown'
+                else:
+                    entries, count, pos = output.rstrip('\0').split('\0') if output else [], 0, 0
+                    while pos < len(entries):
+                        # Renames/copies contain a second pathname, not a second change.
+                        pos += 2 if 'R' in entries[pos][:2] or 'C' in entries[pos][:2] else 1
+                        count += 1
+                    detail = f'uncommitted={count}'
+            items.append(('worktree', str(path), labels, detail))
+    branches = read_git(root, 'for-each-ref', '--format=%(refname)%00%(committerdate:unix)', 'refs/heads/')
+    if trunk and branches:
+        cutoff = time.time() - 7 * 24 * 60 * 60
+        for line in branches.splitlines():
+            branch, _, stamp = line.partition('\0')
+            if branch == trunk:
+                continue
+            # Distinguish "not ancestor" from a failed query before calling it stale.
+            ancestry = read_git(root, 'merge-base', '--is-ancestor', branch, trunk, return_code=True)
+            labels = []
+            if ancestry == 0 and branch not in checked_out and branch not in active_branches:
+                labels.append('merged branch without worktree')
+            elif ancestry == 1 and stamp.isdigit() and int(stamp) < cutoff:
+                labels.append('stale unmerged branch (>7 days; not removable)')
+            if labels:
+                items.append(('branch', branch.removeprefix('refs/heads/'), labels, ''))
+    return trunk_name, items
+
+
+def warn_closed_worktree(root, values):
+    worktree = values.get('worktree', '-')
+    if worktree == '-':
+        return
+    path = (root / worktree).resolve()
+    records = git_worktrees(root)
+    matching = [record for record in records if Path(record.get('worktree', '')).resolve() == path]
+    branches = {record['branch'] for record in matching if 'branch' in record}
+    branches.add('refs/heads/' + path.name)
+    remaining = [branch.removeprefix('refs/heads/') for branch in sorted(branches)
+                 if read_git(root, 'show-ref', '--verify', '--quiet', branch) is not None]
+    if path.exists() or matching or remaining:
+        print(f'Warning: closing task with remaining worktree/branch: {worktree!r}'
+              + (f'; branches: {", ".join(remaining)}' if remaining else '')
+              + '; record each retained item and reason in Wrap-up.')
+
+
 def status(root):
     for p in task_paths(root):
         text = read(p)
@@ -1404,6 +1517,14 @@ def status(root):
                 stale = True
         print(f'lock {path.name}: holder={holder} since={since} expected={expected} next={successor}'
               + (' ! stale holder' if stale else ''))
+    trunk, items = git_hygiene(root)
+    if items:
+        counts = {}
+        for _, _, labels, _ in items:
+            for label in labels:
+                counts[label] = counts.get(label, 0) + 1
+        print(f'git (trunk={trunk}): ' + ', '.join(f'{count} {label}' for label, count in counts.items())
+              + ' (cw lint lists them)')
 
 
 def read_lock(path):
@@ -1761,8 +1882,13 @@ def lint(root):
         print(violation)
     for warning in warnings:
         print(f'over guideline: {warning}; consider cowork-consolidate')
+    trunk, git_warnings = git_hygiene(root, dirty=True)
+    for kind, name, labels, detail in git_warnings:
+        print(f'over guideline: git (trunk={trunk}): {kind} {name!r}: {", ".join(labels)}'
+              + (f'; {detail}' if detail else '') + '; review before cleanup')
     if not violations:
-        print(f'Validation OK; {len(warnings)} over guideline.' if warnings else 'Caps OK.')
+        count = len(warnings) + len(git_warnings)
+        print(f'Validation OK; {count} over guideline.' if count else 'Caps OK.')
     return 1 if violations else 0
 
 
@@ -1912,7 +2038,10 @@ def main():
                 get_seat(root, changes['seat'])
             if changes.get('project', '-') != '-':
                 validate_project(root, changes['project'])
-            write(root, p, edit_header(text, changes, p))
+            updated = edit_header(text, changes, p)
+            write(root, p, updated)
+            if changes.get('status') == 'closed':
+                warn_closed_worktree(root, header(updated, p)[0])
         elif cmd == 'start':
             start(root, args)
         elif cmd == 'check':

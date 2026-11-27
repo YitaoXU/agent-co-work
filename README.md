@@ -116,6 +116,8 @@ flowchart TD
 
 `cw start` enforces the task/parent approval gate; `cw new --worktree` creates `.worktrees/<task>` and a task branch, with records kept in the main checkout through `COWORK_ROOT`; see the skill's [review and Git rules](skills/cowork/SKILL.md#escalation-and-review).
 
+Keep one trunk and use other branches only for short-lived steps. The coordinator checks Git status before dispatch and commits each accepted step with explicit paths, verifies the staged path list, and defaults to a `<task>: ` message prefix unless the project AGENTS.md says otherwise. Publishing follows only the remote/branch or publishing tool authorized in the project Decisions or AGENTS.md; other paths, force pushes and history rewrites need your approval. In local checkouts, seats work in the project root or their assigned `.worktrees/<task>`, never agent-app worktrees or ad-hoc checkouts; projects may document remote review-tree locations. Prefer `git archive` exports for review or publication copies. Merge and remove a task worktree and its branch in the same step, before closing the task. Wrap-up records removal or why each branch/worktree remains; Handover names uncommitted paths and their owner tasks.
+
 ### Default project layout
 
 Projects can declare a "where things go" override in `AGENTS.md`; installation does not relocate existing files. Ignored evidence is local and needs the project's own backup policy.
@@ -129,7 +131,7 @@ Projects can declare a "where things go" override in `AGENTS.md`; installation d
 | `output/<yyyymmdd>/<task>/` | Results, audit findings, logs, rolled-up `log.md` | Ignored | Yes; protect cited paths |
 | `.scratch/` | Host-local operational receipts and scheduler files | Ignored | Operational receipts only |
 | `.tmp/` | Disposable clones, sandboxes, probes | Ignored | No; export needed evidence first |
-| `.worktrees/` | Optional isolated checkouts | Ignored | No; retire after merge/closure |
+| `.worktrees/` | Optional isolated checkouts | Ignored | No; remove in the merge step before closure |
 
 See [consolidation](skills/cowork-consolidate/SKILL.md) for each class's lifecycle, length guideline, and archive destination.
 
@@ -173,7 +175,7 @@ The release clone at `~/.agent-co-work` is shared by all target projects. For a 
 
 **Seats:** choose the CLI(s) you have installed from [Choosing seats](#choosing-seats) and [Seat setups](#seat-setups), including single-CLI examples. Before a fresh install, pass `--seat <seat>=<agent>:<model>:<effort>:<life>` to `init` (repeatable) to override defaults, review the revised plan, then rerun that exact command with `--apply`. Run `cowork/cw seats` to inspect the installed table.
 
-**Kit version:** the plan shows `kit: to <sha>` on a fresh install or `kit: from <old|unknown> to <sha>` for a changed upgrade. A fresh install or upgrade writes `cowork/kit-version` as one line containing the clone's full HEAD commit and origin URL (HTTPS credentials are removed). `cowork/cw lint` prints the installed version; compare it with the plan. It prints `Caps OK.` only with no warnings/errors, or `Validation OK; <n> over guideline.` for advisory length/duplicate warnings. An unchanged version prints no version-change line. Plain `init` preserves an older project's version, including a missing stamp; use `--upgrade` to record the installed release. `init` keeps these kit checks warn-only; `upgrade` refuses dirty or development clones.
+**Kit version:** the plan shows `kit: to <sha>` on a fresh install or `kit: from <old|unknown> to <sha>` for a changed upgrade. A fresh install or upgrade writes `cowork/kit-version` as one line containing the clone's full HEAD commit and origin URL (HTTPS credentials are removed). `cowork/cw lint` prints the installed version; compare it with the plan. It prints `Caps OK.` only with no warnings/errors, or `Validation OK; <n> over guideline.` for advisory length, duplicate or Git findings. An unchanged version prints no version-change line. Plain `init` preserves an older project's version, including a missing stamp; use `--upgrade` to record the installed release. `init` keeps these kit checks warn-only; `upgrade` refuses dirty or development clones.
 
 **What `init` touches:** creates `cowork/cw`, `cowork/kit-version` (fresh install only), `cowork/seats.tsv`, `cowork/coordinator.addr`, `cowork/<today>/coordinator.md`, `cowork/README.md`, and `cowork/lessons/README.md`; copies the five skills (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`, `cowork-away`) into `.claude/skills/` and `.agents/skills/`; on fresh installation appends missing `/cowork/`, `/output/`, `/.scratch/`, `/.tmp/`, and `/.worktrees/` entries to `.gitignore` (listed in the plan; anchored or unanchored lines count after trimming trailing whitespace), appends a marked block to `AGENTS.md`, and adds `@AGENTS.md` to `CLAUDE.md` if absent. After installation, plain init and `--upgrade` preserve `.gitignore` byte-for-byte and print a note if default entries are missing. Installations made before the anchored defaults may list unanchored `cowork/`, which also ignores `.agents/skills/cowork/` and `.claude/skills/cowork/`; replace it with `/cowork/` by hand to track the installed skills. Plain init preserves other existing content (including project text outside the marked instruction block), and rerunning an up-to-date installation prints `nothing to do`. `python3 ~/.agent-co-work/bin/cw init --upgrade` (then `--upgrade --apply`) refreshes only `cowork/cw`, `cowork/kit-version`, the copied skills, and the marked `AGENTS.md` block.
 
@@ -241,6 +243,8 @@ Short Briefs stay in the task record. A Brief over about 20 lines, spanning seve
 - `cw lessons [yyyymmdd]` refreshes daily From tasks from Wrap-up/legacy Debrief lessons and preserves Takeaways.
 - `cw lint` prints the installed kit version, validates headers/project status, and checks nonempty section lines: Goal <=3, State <=10, Handover <=20, project Decisions <=20. Soft file guidelines are lessons README <=40 and overview <=60; archived project histories are excluded from Decisions checks. Lengths and exact duplicate lines longer than 40 characters print `over guideline: ...; consider cowork-consolidate` and exit 0. Closed task records are excluded from length and duplicate advisories. Keep records concise and consolidate when over. Invalid project/task headers, names, seat schemas and path/symlink escapes still exit 1.
 
+`cw status` and `cw lint` inspect local Git worktrees and branches without changing Git. They flag prunable entries, worktrees outside the root or outside `.worktrees/`, merged worktrees left behind, closed/missing task worktrees, merged branches without a worktree, and unmerged branches older than seven days. Active task worktrees and reserved branches are excluded from merged-item findings. Git advisories name the root checkout's current branch as trunk, group labels per item, and exit 0; stale unmerged branches are never called removable. Status prints only a summary when findings exist; lint adds uncommitted counts for live worktrees and includes each item once in its advisory total. Missing Git or a non-Git root is silent. These checks do not authorize cleanup: ignored files, running processes and evidence references still need review. Closing a task with `cw set ... status=closed` warns if its recorded worktree or branch remains, while applying the change. Weekly consolidation raises Git advisories with you.
+
 Task templates include `args: -`; legacy `size:` and `debrief` / `## Debrief` remain readable. Use `cw set` to update frontmatter.
 
 ### Coordinator handover
@@ -275,11 +279,11 @@ All `cw` commands (global flag: `--root <dir>`):
 | `cw seat set [--args='...'] <seat> <agent> <model> <effort> [life]` | Update one seat row (omit `--args` to preserve; `--args=-` clears) and append a `State` entry |
 | `cw project new <name>` | Create `cowork/projects/<name>.md` |
 | `cw new <task> --seat <seat> (--kind task\|step \| --size large\|small) [--project <name>] [--line main\|side\|-] [--parent <task>] [--agent agent:model:effort[:life]] [--args='...'] [--worktree]` | Create `cowork/<today>/<task>.md` (and optional `.worktrees/<task>`) |
-| `cw set <taskfile> key=value ...` | Edit validated task frontmatter fields |
+| `cw set <taskfile> key=value ...` | Edit validated task frontmatter fields; warn on closing with a remaining worktree/branch |
 | `cw start <taskfile> [--print]` | Launch a gated task/step in Herdr, or print launch commands |
 | `cw check <taskfile>` | Show terminal `hc get` status and last 3 `State` lines |
 | `cw approve <terminal>` | Answer a recognized root trust or `agy` `cowork/cw` prompt (exit 2 otherwise) |
-| `cw status` | List active assigned terminals and unresolved reports (`blocked`, `error`, `exited`, `BLOCKED:`, `undelivered report`) and locks (`! stale holder`) |
+| `cw status` | List active assigned terminals and unresolved reports (`blocked`, `error`, `exited`, `BLOCKED:`, `undelivered report`) and locks (`! stale holder`); summarize Git advisories |
 | `cw lock next <resource> <task\|->` | Coordinator sets or clears the single queue head |
 | `cw lock take <resource>` | Acquire an available or queued lock for the caller task |
 | `cw lock expect <resource> <time>` | Send an advisory release estimate to successor and coordinator |

@@ -114,6 +114,8 @@ flowchart TD
 
 `cw start` 检查任务及父任务的批准关卡；`cw new --worktree` 创建 `.worktrees/<task>` 和任务分支，通过 `COWORK_ROOT` 将记录保留在主检出中；详见技能中的 [审查与 Git 规则](skills/cowork/SKILL.md#escalation-and-review)。
 
+保留一条主干，其他分支只用于短期步骤。协调员派工前检查 Git 状态，每个验收通过的步骤按明确路径提交，核对暂存路径列表，提交信息默认以 `<task>: ` 开头，项目 AGENTS.md 可指定其他约定。发布只走项目 Decisions 或 AGENTS.md 授权的远端/分支或发布工具；其他路径、强制推送和历史改写需要你批准。本地检出中，各席位只在项目根目录或分配的 `.worktrees/<task>` 工作，不使用 agent 应用创建的 worktree 或临时检出；项目可以另行约定远程审阅树位置。审阅和发布副本优先用 `git archive` 导出。任务 worktree 分支在同一步骤内合并，并移除 worktree 和分支，完成后才能结项。Wrap-up 记录移除情况或每项保留理由；Handover 列出未提交路径及其所属任务。
+
 ### 默认项目布局
 
 项目可在 `AGENTS.md` 中声明文件存放覆盖规则，安装不会搬动现有文件。忽略的证据是本地文件，备份由项目负责。
@@ -127,7 +129,7 @@ flowchart TD
 | `output/<yyyymmdd>/<task>/` | 结果、审计发现、日志、汇总的 `log.md` | 忽略 | 是，保护引用路径 |
 | `.scratch/` | 主机本地操作回执、调度文件 | 忽略 | 仅操作回执 |
 | `.tmp/` | 可丢弃的克隆、沙箱、探测 | 忽略 | 否，先导出必要证据 |
-| `.worktrees/` | 可选的隔离检出 | 忽略 | 否，合并或结项后清理 |
+| `.worktrees/` | 可选的隔离检出 | 忽略 | 否，在合并步骤内移除，早于结项 |
 
 各类文件的生命周期、建议长度和历史位置见 [归纳技能](skills/cowork-consolidate/SKILL.md)。
 
@@ -171,7 +173,7 @@ cowork/cw lint
 
 **席位**：根据已安装的 CLI 查看[选择席位](#选择席位)与[席位配置](#席位配置)，其中包含单 CLI 示例。首次安装前，可向 `init` 传入 `--seat <seat>=<agent>:<model>:<effort>:<life>`（可重复指定）覆盖默认席位；检查新计划后，在完全相同的命令中追加 `--apply`。使用 `cowork/cw seats` 查看已安装的席位表。
 
-**Kit 版本**：首次安装的计划显示 `kit: to <sha>`，版本有变化的升级显示 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出已安装版本，供你与计划核对。仅在无告警和错误时输出 `Caps OK.`；长度或重复行提示则显示 `Validation OK; <n> over guideline.`。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。`init` 对 kit 未提交改动和开发仓库仍仅告警；`upgrade` 则拒绝这些 clone。
+**Kit 版本**：首次安装的计划显示 `kit: to <sha>`，版本有变化的升级显示 `kit: from <old|unknown> to <sha>`。首次安装或升级会写入 `cowork/kit-version`，内容为一行 clone 的完整 HEAD 提交和 origin URL（移除 HTTPS 凭据）。`cowork/cw lint` 会输出已安装版本，供你与计划核对。仅在无告警和错误时输出 `Caps OK.`；长度、重复行或 Git 提示则显示 `Validation OK; <n> over guideline.`。版本未变时不输出版本变更行。普通 `init` 保留旧项目的版本状态，包括缺失的版本文件；使用 `--upgrade` 才会记录安装的发布版本。`init` 对 kit 未提交改动和开发仓库仍仅告警；`upgrade` 则拒绝这些 clone。
 
 **`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将五个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）复制到 `.claude/skills/` 和 `.agents/skills/`；首次安装时向 `.gitignore` 追加缺失的 `/cowork/`、`/output/`、`/.scratch/`、`/.tmp/`、`/.worktrees/`（计划中列出；去除行尾空白后，带或不带根目录锚点的已有行均算存在），向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。已有安装的普通 init 和 `--upgrade` 逐字节保留 `.gitignore`，缺少默认项时提示。在改用锚点默认项之前安装的项目可能写的是不带锚点的 `cowork/`，它也会忽略 `.agents/skills/cowork/` 和 `.claude/skills/cowork/`；如需跟踪已安装的技能，请手动改为 `/cowork/`。普通 init 保留其他已有内容（包括标记指令块以外的已有项目文字），对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
 
@@ -238,6 +240,8 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 - `cw index` 生成以 60 行为建议长度的概览：按项目/线路分组的活跃 task/seat，以及近 7 天关闭的记录。step 汇总为父任务行上的计数（同日父任务优先，否则最新）；无父任务的 step 留在每日记录中。超出时仍写入概览并告警；应进行整理。
 - `cw lessons [yyyymmdd]` 从 Wrap-up/旧 Debrief 刷新每日 From tasks，保留 Takeaways。
 - `cw lint` 打印安装版本、校验头部和项目状态，并检查非空节行数：Goal <=3、State <=10、Handover <=20、项目 Decisions <=20。文件建议长度为教训 README <=40、概览 <=60；项目历史归档不受 Decisions 检查。长度超出与超过 40 字符的完全重复行输出 `over guideline: ...; consider cowork-consolidate`，退出码为 0。已关闭的任务记录不参与长度和重复行建议检查。保持简洁，超出时整理。项目/任务头部、名称、席位格式与路径/符号链接越界仍以退出码 1 失败。
+
+`cw status` 和 `cw lint` 只读检查本地 Git worktree 与分支：可清理的注册项、根目录外或 `.worktrees/` 外的 worktree、已合并仍保留的 worktree、任务已关闭或缺失的 worktree、无 worktree 的已合并分支，以及最后提交超过七天的未合并分支。活跃任务的 worktree 和登记分支不计入已合并遗留项。提示会注明作为主干的根目录当前分支，同一项合并列出全部标签，退出码为 0；过期未合并分支绝不标为可删除。Status 仅在有发现时输出摘要；lint 为仍存在的 worktree 补充未提交数量，并按每项一次计入建议总数。缺少 Git 或非 Git 根目录时静默跳过。这些检查不授权删除，仍须检查忽略文件、运行进程和证据引用。`cw set ... status=closed` 在登记的 worktree 或分支仍存在时提醒，关闭操作照常生效。每周归纳时会与你讨论 Git 提示。
 
 任务模板包含 `args: -`，旧 `size:` 和 `debrief` / `## Debrief` 仍可读取。用 `cw set` 修改头部。
 

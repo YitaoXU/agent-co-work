@@ -7,7 +7,7 @@ description: Consolidate accumulating agent-co-work records, decisions, lessons,
 
 Read [cowork](../cowork/SKILL.md) for ownership, immutable evidence, and soft length guidelines. The coordinator integrates shared records; workers roll up only their own State and assigned outputs.
 
-1. Inspect the requested scope at task Wrap-up when length guidelines approach or are exceeded, weekly, or at project milestones. Inventory the classes below, their current counts, active constraints, and cited evidence before editing.
+1. At weekly consolidation, run `cw lint` and raise its Git advisories with the user. Inspect the requested scope at task Wrap-up when length guidelines approach or are exceeded, weekly, or at project milestones. Inventory the classes below, their current counts, active constraints, and cited evidence before editing.
 2. Preserve history first, then summarize. Keep dates, provenance, active decisions, outstanding blockers, and links to the original evidence. Never infer a user decision or rewrite an executed receipt.
 
 | Class | Trigger / guideline | Consolidation action |

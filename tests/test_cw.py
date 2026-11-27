@@ -135,7 +135,8 @@ class CWTests(unittest.TestCase):
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(('HC_', 'COWORK_'))}
         self.env.update(PATH=str(fake_dir) + os.pathsep + os.environ.get('PATH', ''),
                         FAKE_LOG=str(self.log), FAKE_CONFIG=str(self.config), FAKE_PROJECT=str(self.root),
-                        TMPDIR=str(SCRATCH), PYTHONDONTWRITEBYTECODE='1')
+                        TMPDIR=str(SCRATCH), PYTHONDONTWRITEBYTECODE='1',
+                        GIT_CEILING_DIRECTORIES=str(self.work))
 
     def cw(self, *args, code=0, live=False, env=None, script=CW, cwd=None):
         environ = dict(self.env)
@@ -2349,10 +2350,12 @@ sys.exit(namespace['main']())
         # are longer than forty characters; only actual repeated prose counts.
         literal = next(line for line in (REPO / 'templates/agents-block.md').read_text().splitlines() if len(line) > 40)
         for task in (p, q):
+            self.assertIn('## Wrap-up\n- Branches and worktrees: -\n', task.read_text())
             task.write_text(task.read_text() + literal + '\n' + template + '\n')
         output = self.cw('lint').stdout
         self.assertNotIn('Duplicate: status:', output)
         self.assertNotIn('Duplicate: ' + literal, output)
+        self.assertNotIn('Duplicate: - Branches and worktrees:', output)
         self.assertIn('Duplicate: ' + template, output)
 
     def fake_git(self, *, repository=True, fail_add=False):

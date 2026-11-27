@@ -20,7 +20,7 @@ class KitVersionTests(unittest.TestCase):
                         GIT_AUTHOR_NAME='Kit Test', GIT_COMMITTER_NAME='Kit Test',
                         GIT_AUTHOR_EMAIL='kit-test' + '@' + 'example.invalid',
                         GIT_COMMITTER_EMAIL='kit-test' + '@' + 'example.invalid',
-                        GIT_TERMINAL_PROMPT='0')
+                        GIT_TERMINAL_PROMPT='0', GIT_CEILING_DIRECTORIES=str(self.work))
         self.source = self.work / 'release-source'
         self.copy_assets(self.source)
         (self.source / 'tests').mkdir()
