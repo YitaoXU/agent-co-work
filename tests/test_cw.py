@@ -116,6 +116,20 @@ print(json.dumps(result))
 '''
 
 
+def first_command(preview):
+    """Read one shell command without splitting quoted multiline prompts."""
+    lexer = shlex.shlex(preview, posix=True, punctuation_chars='\n')
+    lexer.whitespace = ' \t\r'
+    lexer.whitespace_split = True
+    lexer.commenters = ''
+    words = []
+    for word in lexer:
+        if word == '\n':
+            break
+        words.append(word)
+    return words
+
+
 class CWTests(unittest.TestCase):
     def setUp(self):
         SCRATCH.mkdir(exist_ok=True)
@@ -285,7 +299,7 @@ class CWTests(unittest.TestCase):
         self.assertEqual(self.calls(), [])
 
     def test_fresh_init_creates_plan_docs_from_bundled_templates(self):
-        targets = {'docs/plans/README.md': 'plans-readme.md',
+        targets = {'docs/plans/README.md': 'plans-index.md',
                    'docs/plans/brief-template.md': 'brief-template.md'}
         before = self.snapshot()
         plan = self.cw('init').stdout
@@ -296,8 +310,8 @@ class CWTests(unittest.TestCase):
         for path, template in targets.items():
             self.assertEqual((self.root / path).read_bytes(), (REPO / 'templates' / template).read_bytes())
         index = (self.root / 'docs/plans/README.md').read_text()
-        self.assertIn('Next free number: 001\n', index)
-        self.assertTrue(index.endswith('| # | Plan | Brief | State |\n|---|---|---|---|\n'))
+        self.assertIn('project or line-of-work folders', index)
+        self.assertTrue(index.endswith('| Folder | Scope |\n|---|---|\n'))
         self.assertEqual(self.calls(), [])
 
     def test_init_preserves_existing_plans_case_insensitively_without_merging(self):
@@ -460,10 +474,10 @@ class CWTests(unittest.TestCase):
         fresh = self.work / 'fresh'
         fresh.mkdir()
         (fresh / 'templates').mkdir()
-        for template in ('plans-readme.md', 'brief-template.md'):
+        for template in ('plans-index.md', 'brief-template.md'):
             (fresh / 'templates' / template).write_text('Project-owned template\n')
         self.cw('init', '--apply', script=script, cwd=fresh)
-        for path, template in (('README.md', 'plans-readme.md'), ('brief-template.md', 'brief-template.md')):
+        for path, template in (('README.md', 'plans-index.md'), ('brief-template.md', 'brief-template.md')):
             self.assertEqual((fresh / 'docs/plans' / path).read_bytes(), (REPO / 'templates' / template).read_bytes())
             self.assertEqual((fresh / 'templates' / template).read_text(), 'Project-owned template\n')
         for base in ('.agents/skills', '.claude/skills'):
@@ -585,7 +599,7 @@ class CWTests(unittest.TestCase):
                 p = self.new(agent, seat='worker-light', size='small')
                 before = self.snapshot()
                 preview = self.cw('start', p, '--print').stdout
-                self.assertEqual(shlex.split(preview.splitlines()[0])[-len(expected):], expected)
+                self.assertEqual(first_command(preview)[-len(expected):], expected)
                 self.assertEqual(before, self.snapshot())
                 self.clear_calls()
                 self.cw('start', p, live=True)
@@ -603,7 +617,7 @@ class CWTests(unittest.TestCase):
             with self.subTest(agent=agent):
                 self.cw('set', p, f'agent={agent}:override:xhigh:short')
                 expected = (['--sandbox', 'workspace-write'] if agent == 'codex' else []) + ['--tag', 'two words']
-                preview = shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])
+                preview = first_command(self.cw('start', p, '--print').stdout)
                 self.clear_calls()
                 self.cw('start', p, live=True)
                 launch = next(c for c in self.calls() if c[0] == 'run')
@@ -613,7 +627,7 @@ class CWTests(unittest.TestCase):
                     self.assertIn('COWORK_SEAT=worker-light', command)
                 self.assertNotIn('--no-parent', launch)
         self.cw('set', p, 'agent=-')
-        self.assertEqual(shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])[-4:],
+        self.assertEqual(first_command(self.cw('start', p, '--print').stdout)[-4:],
                          ['--sandbox', 'workspace-write', '--tag', 'two words'])
         self.assertEqual(table, (self.root / 'cowork/seats.tsv').read_bytes())
 

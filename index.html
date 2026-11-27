@@ -166,10 +166,10 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <li><span data-l="en"><b>Plan</b>: the coordinator lists numbered tasks, consults the advisor when useful, and records your approval with a date.</span><span data-l="zh"><b>计划（Plan）</b>：协调员列出编号任务，需要时请顾问审阅，你批准后记一条带日期的决定。</span></li>
     <li><span data-l="en"><b>Brief</b>: before each task, numbered steps, done-conditions, defaults and stop conditions; <code>cw start</code> refuses until you approve.</span><span data-l="zh"><b>Brief</b>：每个任务开始前，协调员写好步骤、完成条件、默认值和停止条件，你批准后才能 <code>cw start</code>。</span></li>
     <li><span data-l="en"><b>Run</b>: the coordinator dispatches steps and settles routine questions; science, scope, budget and risk questions come to you first.</span><span data-l="zh"><b>执行</b>：协调员派步骤、处理小问题；科学、范围、预算、风险类的难题先问你再继续。</span></li>
-    <li><span data-l="en"><b>Wrap-up</b>: a short conclusion-first summary (result, evidence, lessons, next, decision needed); you decide what follows.</span><span data-l="zh"><b>收尾（Wrap-up）</b>：结论优先的短摘要（结果、证据位置、经验、下一步、需要你决定什么），由你决定接下来怎么走。</span></li>
+    <li><span data-l="en"><b>Wrap-up</b>: a short conclusion-first summary (result, evidence, lessons, next, decision needed); you decide what follows. Decisions sit in a bold ▶ block; a finished task with nothing left for you closes on its own.</span><span data-l="zh"><b>收尾（Wrap-up）</b>：结论优先的短摘要（结果、证据位置、经验、下一步、需要你决定什么），由你决定接下来怎么走。待你决定的内容放在加粗的 ▶ 块里；已完成且没有待你决定事项的任务自动关闭。</span></li>
   </ol>
-  <p class="note" data-l="en">Approved tasks can run in parallel. Long or multi-task Briefs live in <code>docs/plans/NNN-*</code>; short ones stay in the task record.</p>
-  <p class="note" data-l="zh">多个已批准的任务可以并行。长的或跨任务的 Brief 放在 <code>docs/plans/NNN-*</code>，短的留在任务记录里。</p>
+  <p class="note" data-l="en">Approved tasks can run in parallel. Long or multi-task Briefs live in <code>docs/plans/&lt;project&gt;/NNN-*</code> (<code>_misc</code> without a project); short ones stay in the task record. The root README indexes project or line-of-work folders and keeps the Brief template alongside it. Each folder has a README and may contain subfolders; numbering is per folder unless the parent README declares it shared. Declared AGENTS.md layouts take precedence.</p>
+  <p class="note" data-l="zh">多个已批准的任务可以并行。长的或跨任务的 Brief 放在 <code>docs/plans/&lt;project&gt;/NNN-*</code>（无项目用 <code>_misc</code>），短的留在任务记录里。根 README 索引项目或工作线目录，Brief 模板也保留在根目录。每个目录各有 README，可继续设子目录；编号按目录独立，除非父 README 声明共用。AGENTS.md 已声明的布局优先。</p>
 </section>
 
 <section>
@@ -207,14 +207,14 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <thead><tr><th><span data-l="en">Path</span><span data-l="zh">路径</span></th><th><span data-l="en">Holds</span><span data-l="zh">放什么</span></th><th>Git</th></tr></thead>
     <tbody>
       <tr><td><code>docs/</code></td><td><span data-l="en">Guides, design, accepted conclusions</span><span data-l="zh">指南、设计、已接受的结论</span></td><td><span data-l="en">tracked</span><span data-l="zh">跟踪</span></td></tr>
-      <tr><td><code>docs/plans/</code></td><td><span data-l="en">Numbered plans, long Briefs, index and Brief template</span><span data-l="zh">编号计划、长 Brief、索引和 Brief 模板</span></td><td><span data-l="en">tracked</span><span data-l="zh">跟踪</span></td></tr>
+      <tr><td><code>docs/plans/</code></td><td><span data-l="en">Project or line-of-work folders, root index and Brief template</span><span data-l="zh">项目或工作线目录、根索引和 Brief 模板</span></td><td><span data-l="en">tracked</span><span data-l="zh">跟踪</span></td></tr>
       <tr><td><code>cowork/</code></td><td><span data-l="en">Daily task records, projects, seats, locks, lessons</span><span data-l="zh">每日任务记录、项目、角色表、锁、经验</span></td><td><span data-l="en">ignored</span><span data-l="zh">忽略</span></td></tr>
-      <tr><td><code>output/&lt;date&gt;/&lt;task&gt;/</code></td><td><span data-l="en">Results, audit findings, logs</span><span data-l="zh">结果、审计发现、日志</span></td><td><span data-l="en">ignored</span><span data-l="zh">忽略</span></td></tr>
+      <tr><td><code>output/&lt;project&gt;/&lt;yyyymmdd&gt;/&lt;task&gt;/</code></td><td><span data-l="en">Results, audit findings, logs</span><span data-l="zh">结果、审计发现、日志</span></td><td><span data-l="en">ignored</span><span data-l="zh">忽略</span></td></tr>
       <tr><td><code>.scratch/ · .tmp/ · .worktrees/</code></td><td><span data-l="en">Host receipts, disposable scratch, isolated checkouts</span><span data-l="zh">本机回执、可丢弃的临时文件、隔离检出</span></td><td><span data-l="en">ignored</span><span data-l="zh">忽略</span></td></tr>
     </tbody>
   </table></div>
-  <p class="note" data-l="en">A project can declare its own layout in <code>AGENTS.md</code>; installs never move existing files.</p>
-  <p class="note" data-l="zh">项目可以在 <code>AGENTS.md</code> 里声明自己的存放规则；安装从不搬动已有文件。</p>
+  <p class="note" data-l="en">A Brief-named output path wins. The default project comes from the task, then its parent, else <code>_misc</code> (project names contain no underscore). Declare <code>cowork-outputs: &lt;template&gt;</code> outside the marked <code>AGENTS.md</code> block using <code>{project}</code>, <code>{yyyymmdd}</code>, <code>{task}</code>; e.g. <code>output/{yyyymmdd}/{task}/</code>. Use <code>_misc</code> only where the layout names no folder for project-less work. Launch prompts show the main-checkout default via <code>COWORK_ROOT</code>. Existing outputs and plans never move; old citations stay valid.</p>
+  <p class="note" data-l="zh">Brief 指定的输出路径优先。默认项目依次取任务、父任务的 project，否则用 <code>_misc</code>（项目名不含下划线）。可在 <code>AGENTS.md</code> 标记区块外写 <code>cowork-outputs: &lt;template&gt;</code>，使用 <code>{project}</code>、<code>{yyyymmdd}</code>、<code>{task}</code>，例如 <code>output/{yyyymmdd}/{task}/</code>；仅当布局未另行指定无项目任务的目录时使用 <code>_misc</code>。启动提示通过 <code>COWORK_ROOT</code> 显示主 checkout 默认路径。已有输出和计划不搬动，旧引用继续有效。</p>
 </section>
 
 <section>
@@ -223,30 +223,32 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <div class="rel now">
       <div class="tag"><span class="sha">2026-11-27</span><span class="what" data-l="en">Latest release</span><span class="what" data-l="zh">最新版本</span></div>
       <ul data-l="en">
+        <li>Questions for you end each message in one bold <b>▶ Decision needed</b> block; accepted tasks with no open decision close automatically</li>
         <li>Read-only Git advisories in <code>cw status</code> and <code>cw lint</code>, with active task exclusions and a warning when closing a task with a remaining worktree or branch</li>
         <li>One-trunk workflow, project-authorized publishing, and explicit branch/worktree accounting in Wrap-up</li>
         <li><code>cw lint</code> no longer flags length or duplicate lines in closed task records; only living records are checked</li>
         <li>The README start section is one command (<code>claude</code>, or <code>codex</code> / <code>agy</code>)</li>
-        <li>This page</li>
+        <li>New outputs and plans are grouped by project; <code>cw start</code> displays the output default. <code>cw project new</code> adds a folder index only under exact-case <code>docs/plans/</code>, with no existing project folder or declared output layout; otherwise it prints a note. Plain init and upgrade preserve plans.</li>
       </ul>
       <ul data-l="zh">
+        <li>需要你决定的问题统一放在消息末尾加粗的 <b>▶ 需要你决定</b> 块；验收通过且无待决事项的任务自动关闭</li>
         <li><code>cw status</code> 和 <code>cw lint</code> 新增只读 Git 提示，排除活跃任务的已合并项；任务关闭时提醒仍保留的 worktree 或分支</li>
         <li>一条主干、项目授权的发布路径，以及 Wrap-up 中明确的分支和 worktree 清单</li>
         <li><code>cw lint</code> 不再对已关闭的历史记录提示长度和重复行，只检查还在进行的记录</li>
         <li>README 的启动段落改为一行命令（<code>claude</code>，或换成 <code>codex</code> / <code>agy</code>）</li>
-        <li>这个网页</li>
+        <li>新输出和计划按项目分组，<code>cw start</code> 显示默认输出路径。<code>cw project new</code> 仅在大小写完全匹配的 <code>docs/plans/</code> 下、项目目录不存在且未声明输出布局时创建目录索引，否则只提示。普通 init 和升级保留计划文件。</li>
       </ul>
     </div>
     <div class="rel">
       <div class="tag"><span class="sha">77b208f</span><span class="what">plan-docs</span></div>
       <ul data-l="en">
         <li>A fresh install creates a <code>docs/plans/README.md</code> index and a Brief template; an existing plans folder is never touched</li>
-        <li>Long or multi-task Briefs go to <code>docs/plans/NNN-*</code>; three-digit numbers are never reused</li>
+        <li>Long or multi-task Briefs use numbered plan documents; three-digit numbers are never reused</li>
         <li>Default .gitignore entries are anchored (<code>/cowork/</code>), so installed skill folders stay trackable</li>
       </ul>
       <ul data-l="zh">
         <li>首次安装会建 <code>docs/plans/README.md</code> 索引和 Brief 模板；已有 plans 目录绝不覆盖</li>
-        <li>长的或跨任务的 Brief 放进 <code>docs/plans/NNN-*</code>，三位编号永不复用</li>
+        <li>长的或跨任务的 Brief 使用编号计划文档，三位编号永不复用</li>
         <li>.gitignore 默认项改为 <code>/cowork/</code> 这类带锚点的写法，装进项目的技能目录不再被一起忽略</li>
       </ul>
     </div>

@@ -23,7 +23,7 @@ List conditions whose outcome changes a conclusion or what runs next. At a stop,
 
 ## Outputs
 
-List exact paths of all files this task writes, including records and durable evidence under `output/<yyyymmdd>/<task>/`.
+List exact paths of all files this task writes, including records and durable evidence (default `output/<project>/<yyyymmdd>/<task>/`, subject to the AGENTS.md layout). These exact Brief paths take precedence over defaults; preserve existing citations.
 
 ## Completion summary
 

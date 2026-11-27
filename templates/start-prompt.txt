@@ -1,1 +1,2 @@
 You are seat {seat} on task {task} ({name}). Working directory: {worktree}. Read skill cowork, then {taskfile}. Carry out its Brief and keep its State current. At a stop condition write a BLOCKED line in State and run cw report. Finish with the Wrap-up and cw report "<conclusion>; <path>".
+Default outputs (the Brief and the project's AGENTS.md layout take precedence): {outputs}

@@ -60,7 +60,7 @@ What to do first:
 - **Confirm seats and the install plan (new project):** Review the coordinator's recommended seats (including `discussion`), built from your installed CLIs. Choose **keep all defaults** or **adjust seats** (for each adjusted seat, pick its default or type `agent model effort [life]` from the listed valid values). Then confirm the complete seat table, file plan, and kit SHA before the coordinator applies it, and check the installed SHA against the plan.
 - **Upgrade an existing project:** Tell the project's coordinator to **upgrade**, review the upgrade plan and kit SHA it shows, confirm before it applies, and check that the installed SHA matches the confirmed plan.
 - **Ask for a discussion seat:** Ask the coordinator to open a discussion (name an agent if you prefer), switch to the Herdr tab it gives you, and discuss directly there. Ask explicitly if you want it to edit project files, and let it know when you end the discussion so it reports conclusions and open questions back to the coordinator.
-- **Approve Briefs and decisions:** Give the coordinator your project description, discuss Direction and Plan, approve each task's Brief before launch, decide hard questions when escalated, and review the coordinator's short conclusion-first Wrap-up summaries to agree on next steps.
+- **Approve Briefs and decisions:** Give the coordinator your project description, discuss Direction and Plan, approve each task's Brief before launch, decide hard questions when escalated, and review the coordinator's short conclusion-first Wrap-up summaries to agree on next steps. Anything you must decide is collected at the end of a message under a bold **▶ Decision needed** block; finished tasks with nothing left for you close automatically and are reported as closed.
 - **Work while you are away:** Say roughly how long you will be away, answer the coordinator's questions, and say **go** to approve the [away plan](skills/cowork-away/SKILL.md); read its summary when you return.
 
 ## Seat setups
@@ -120,15 +120,15 @@ Keep one trunk and use other branches only for short-lived steps. The coordinato
 
 ### Default project layout
 
-Projects can declare a "where things go" override in `AGENTS.md`; installation does not relocate existing files. Ignored evidence is local and needs the project's own backup policy.
+Projects can declare a "where things go" override in `AGENTS.md`. A Brief-named output path always wins. For new outputs, `cw start` resolves `<project>` from the task, then its parent, else `_misc`; project names never contain `_`. One optional line outside the marked block, `cowork-outputs: <template>`, overrides the default using `{project}`, `{yyyymmdd}`, `{task}` (for example `output/{yyyymmdd}/{task}/`); `_misc` applies only where the layout names no folder for project-less work. Launch prompts show this default in the main checkout through `COWORK_ROOT`. Existing outputs and plans never move, and old citations stay valid. Ignored evidence is local and needs the project's own backup policy.
 
 | Path | Contents | Fresh-install tracking | Durable evidence |
 |---|---|---|---|
 | `docs/` | Living guides, designs, accepted conclusions | Tracked | Yes |
-| `docs/plans/` | Numbered plans and long Briefs, README index, Brief template | Tracked | Yes |
+| `docs/plans/<project>/` | Numbered plans and long Briefs with a README per project or line-of-work folder | Tracked | Yes |
 | `docs/archive/` | Dated rollups of superseded prose | Tracked | Yes |
 | `cowork/` | Daily records, projects, seats, locks, lessons | Ignored | Yes, local records |
-| `output/<yyyymmdd>/<task>/` | Results, audit findings, logs, rolled-up `log.md` | Ignored | Yes; protect cited paths |
+| `output/<project>/<yyyymmdd>/<task>/` | Results, audit findings, logs, rolled-up `log.md` | Ignored | Yes; protect cited paths |
 | `.scratch/` | Host-local operational receipts and scheduler files | Ignored | Operational receipts only |
 | `.tmp/` | Disposable clones, sandboxes, probes | Ignored | No; export needed evidence first |
 | `.worktrees/` | Optional isolated checkouts | Ignored | No; remove in the merge step before closure |
@@ -179,7 +179,7 @@ The release clone at `~/.agent-co-work` is shared by all target projects. For a 
 
 **What `init` touches:** creates `cowork/cw`, `cowork/kit-version` (fresh install only), `cowork/seats.tsv`, `cowork/coordinator.addr`, `cowork/<today>/coordinator.md`, `cowork/README.md`, and `cowork/lessons/README.md`; copies the five skills (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`, `cowork-away`) into `.claude/skills/` and `.agents/skills/`; on fresh installation appends missing `/cowork/`, `/output/`, `/.scratch/`, `/.tmp/`, and `/.worktrees/` entries to `.gitignore` (listed in the plan; anchored or unanchored lines count after trimming trailing whitespace), appends a marked block to `AGENTS.md`, and adds `@AGENTS.md` to `CLAUDE.md` if absent. After installation, plain init and `--upgrade` preserve `.gitignore` byte-for-byte and print a note if default entries are missing. Installations made before the anchored defaults may list unanchored `cowork/`, which also ignores `.agents/skills/cowork/` and `.claude/skills/cowork/`; replace it with `/cowork/` by hand to track the installed skills. Plain init preserves other existing content (including project text outside the marked instruction block), and rerunning an up-to-date installation prints `nothing to do`. `python3 ~/.agent-co-work/bin/cw init --upgrade` (then `--upgrade --apply`) refreshes only `cowork/cw`, `cowork/kit-version`, the copied skills, and the marked `AGENTS.md` block.
 
-Fresh installation also lists and creates `docs/plans/README.md` and `docs/plans/brief-template.md` from the shipped templates, only when no plans folder exists (case-insensitive, including `Docs/plans/`). An existing plans folder is never overwritten or merged. Plain init after installation and `--upgrade` never create or touch these files; when no plans folder exists, they print one note.
+Fresh installation also lists and creates the project-folder index `docs/plans/README.md` and `docs/plans/brief-template.md` from the shipped templates, only when no plans folder exists (case-insensitive, including `Docs/plans/`). An existing plans folder is never overwritten or merged. Plain init after installation and `--upgrade` never create or touch these files; when no plans folder exists, they print one note. `cw project new <name>` creates `docs/plans/<name>/README.md` from the folder template only if exact-case `docs/plans/` exists, that project folder does not, and no `cowork-outputs:` layout is declared; otherwise it leaves plans untouched and prints a note.
 
 **Projects with a server:** if the project runs jobs on a server, the optional step in `cowork-init` asks for every placeholder in [templates/server.md](templates/server.md), prepares the filled rules for user confirmation, and saves them to `docs/server.md` (or the project's declared documentation path). It never overwrites an existing server guide and adds a pointer in `AGENTS.md` outside the marked block. Hardware stays unverified until probed outside the sandbox.
 
@@ -234,7 +234,7 @@ Lock commands return 1 for a pre-mutation error and 3 for a mutation followed by
 
 The [record rules](skills/cowork/SKILL.md#records-and-messages) specify ownership and immutable evidence; [cowork-consolidate](skills/cowork-consolidate/SKILL.md) covers rolling State, Decisions/Plan, lessons, overview/handover, archives, outputs/scratch, and memory.
 
-Short Briefs stay in the task record. A Brief over about 20 lines, spanning several tasks, or kept as project documentation goes in `docs/plans/`, and the record cites it. Plans use `NNN-<slug>.md`, Briefs use `NNN-<slug>-brief.md`, and each three-digit number is never reused. Optional per-line subfolders have their own README indexes and numbering unless the parent index declares it shared. The coordinator keeps each plan's README State cell to one short sentence at named phase transitions and Wrap-up/close; execution detail stays in task State and `output/<yyyymmdd>/<task>/log.md`.
+Short Briefs stay in the task record. A Brief over about 20 lines, spanning several tasks, or kept as project documentation goes in `docs/plans/<project>/` (`_misc` for project-less work), and the record cites it; the root README indexes these folders and keeps the Brief template alongside it. Plans use `NNN-<slug>.md`, Briefs use `NNN-<slug>-brief.md`, and each three-digit number is never reused. Project or line-of-work folders each have their own README index and may contain subfolders; numbering is per folder unless the parent README declares it shared. The coordinator keeps each plan's README State cell to one short sentence at named phase transitions and Wrap-up/close; execution detail stays in task State and `output/<project>/<yyyymmdd>/<task>/log.md`.
 
 - `cw report "<conclusion>; <path>"` sends a task-prefixed message to the coordinator. `--to <task>` resolves the sender's day first, otherwise the newest matching record, sends to its live terminal, and copies the coordinator; an absent target falls back to coordinator only. Each direct destination gets a delivery receipt.
 - Report sends allow up to three attempts of about 180 seconds each, within one shared 10-minute budget for the whole command (including both destinations with `--to`). Before a retry, the target screen is read; a visible payload counts as delivered without resending. Progress goes to stderr; only the final outcome creates a receipt. Task delivery, keys, launches, and other notifications retain their existing behavior.
@@ -313,7 +313,7 @@ All `cw` commands (global flag: `--root <dir>`):
 
 ### Development
 
-- **Layout**: `bin/cw` (single stdlib Python 3 script), `skills/` (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`, `cowork-away`), `templates/` (including `plans-readme.md` and `brief-template.md` for a target project's `docs/plans/`), `tests/`, `index.html` (public overview), and `.nojekyll` (raw GitHub Pages serving).
+- **Layout**: `bin/cw` (single stdlib Python 3 script), `skills/` (`cowork`, `cowork-init`, `cowork-seat`, `cowork-consolidate`, `cowork-away`), `templates/` (including `plans-index.md`, `plans-readme.md` and `brief-template.md` for a target project's `docs/plans/`), `tests/`, `index.html` (public overview), and `.nojekyll` (raw GitHub Pages serving).
 - **Single source of rules**: collaboration rules live only in [skills/cowork/SKILL.md](skills/cowork/SKILL.md) (guideline 150 lines); the other four skills link to it without restating rules.
 - **Checks**: run `python3 -m unittest discover tests` in the kit checkout. Run `cowork/cw lint` in an initialized project to check its collaboration records.
 

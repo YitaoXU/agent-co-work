@@ -435,6 +435,56 @@ def approved_task(values):
             and valid_approval(values.get('approved', '')))
 
 
+def output_template(root):
+    path = inside(root, 'AGENTS.md')
+    if not path.is_file():
+        return None
+    text = re.sub(re.escape(BEGIN) + r'.*?' + re.escape(END), '', read(path), flags=re.S)
+    declarations = re.findall(r'^cowork-outputs:[ \t]*(.*)$', text, flags=re.M)
+    if not declarations:
+        return None
+    if len(declarations) != 1 or not declarations[0].strip():
+        raise CWError('AGENTS.md needs one nonempty cowork-outputs: template outside the marked block.')
+    return declarations[0].strip()
+
+
+def default_outputs(root, path, values):
+    project = values['project']
+    if project == '-' and values.get('parent', '-') != '-':
+        parent = resolve_task(root, path, values['parent'])
+        if parent:
+            project = load_task(root, parent)[2]['project']
+    fields = {'project': project if project != '-' else '_misc',
+              'yyyymmdd': path.parent.name, 'task': values['task']}
+    template = output_template(root) or 'output/{project}/{yyyymmdd}/{task}/'
+    relative = re.sub(r'\{(project|yyyymmdd|task)\}', lambda match: fields[match[1]], template)
+    if '{' in relative or '}' in relative:
+        raise CWError('cowork-outputs: supports only {project}, {yyyymmdd}, {task} placeholders.')
+    return str(inside(root, relative)).rstrip('/') + '/'
+
+
+def new_project(root, name):
+    path = project_path(root, name)
+    if path.exists():
+        raise CWError(f'Project already exists: {name}')
+    # Inspect directory entries, not exists(), which accepts case aliases on macOS.
+    docs = next((p for p in root.iterdir() if p.name == 'docs' and p.is_dir()), None)
+    plans = next((p for p in docs.iterdir() if p.name == 'plans' and p.is_dir()), None) if docs else None
+    layout = output_template(root)
+    index = None
+    if plans is not None and layout is None:
+        folder = plans / name
+        if not folder.exists() and not folder.is_symlink():
+            index = inside(root, folder / 'README.md')
+    write(root, path, render('project.md', project=name))
+    print(path.relative_to(root))
+    if index is not None:
+        write(root, index, asset('templates/plans-readme.md'))
+        print(index.relative_to(root))
+    else:
+        print('Note: plans unchanged (requires exact-case docs/plans/, an absent project folder, and no cowork-outputs: layout).')
+
+
 def start_gate(root, path, values):
     if values['kind'] == 'task' and not approved_task(values):
         raise CWError('Tasks need status: approved and approved: user, yyyy-mm-dd (running/blocked may relaunch).')
@@ -708,7 +758,7 @@ def init(root, args):
     assets = {f'templates/{name}': asset(f'templates/{name}') for name in (
         'seats.tsv', 'task.md', 'project.md', 'agents-block.md', 'start-prompt.txt', 'discuss-prompt.txt',
         'handover-prompt.txt', 'lessons-day.md', 'lessons-readme.md', 'cowork-readme.md',
-        'plans-readme.md', 'brief-template.md')}
+        'plans-index.md', 'plans-readme.md', 'brief-template.md')}
     assets.update({f'skills/{s}/SKILL.md': asset(f'skills/{s}/SKILL.md') for s in SKILLS})
     source = read(Path(__file__))
     source = re.sub(r'^EMBEDDED = .*  # bundled assets$', lambda _: 'EMBEDDED = ' + repr(assets) + '  # bundled assets', source, count=1, flags=re.M)
@@ -734,7 +784,7 @@ def init(root, args):
                       for path in docs.iterdir())
     if not plans_exist:
         if fresh and not args.upgrade:
-            contents['docs/plans/README.md'] = assets['templates/plans-readme.md']
+            contents['docs/plans/README.md'] = assets['templates/plans-index.md']
             contents['docs/plans/brief-template.md'] = assets['templates/brief-template.md']
         else:
             print('Note: existing installation or --upgrade; no plans folder found; docs/plans/ unchanged.')
@@ -1276,7 +1326,8 @@ def start(root, args):
     name = choose_name(root, values['task'], live)
     worktree = values.get('worktree', '-')
     prompt = render('discuss-prompt.txt' if values['seat'] == 'discussion' else 'start-prompt.txt', seat=values['seat'], task=values['task'], name=name, taskfile=p,
-                    worktree=inside(root, worktree) if worktree != '-' else root).strip()
+                    worktree=inside(root, worktree) if worktree != '-' else root,
+                    outputs=default_outputs(root, p, values)).strip()
     commands = launch_plan(root, p, values, seat, name, prompt, info)
     if args.print or not caller:
         for cmd in commands:
@@ -2017,11 +2068,7 @@ def main():
             write(root, path, text)
             print(path.relative_to(root))
         elif cmd == 'project':
-            path = project_path(root, args.name)
-            if path.exists():
-                raise CWError(f'Project already exists: {args.name}')
-            write(root, path, render('project.md', project=args.name))
-            print(path.relative_to(root))
+            new_project(root, args.name)
         elif cmd == 'lock':
             return resource_lock(root, args)
         elif cmd == 'set':

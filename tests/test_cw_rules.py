@@ -23,18 +23,18 @@ class RuleTests(unittest.TestCase):
             with self.subTest(agent=agent):
                 self.cw('seat', 'set', 'worker-light', agent, 'model', 'high', '--args=--label seat')
                 p = self.record(agent, 'step', 'worker-light', '--args=--label "task # value" -a never')
-                run = shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])
+                run = test_cw.first_command(self.cw('start', p, '--print').stdout)
                 self.assertEqual(run[-6:], ['--label', 'seat', '--label', 'task # value', '-a', 'never'])
                 p.write_text(p.read_text().replace(' -a never\n', ' -a never  # keep comment\n'))
                 self.cw('set', p, 'args=--label "new # value"')
                 self.assertIn('args: --label "new # value"  # keep comment', p.read_text())
-                self.assertEqual(shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])[-4:],
+                self.assertEqual(test_cw.first_command(self.cw('start', p, '--print').stdout)[-4:],
                                  ['--label', 'seat', '--label', 'new # value'])
                 before = p.read_bytes()
                 self.cw('set', p, 'args="unterminated', code=1)
                 self.assertEqual(p.read_bytes(), before)
                 p.write_text('\n'.join(line for line in p.read_text().splitlines() if not line.startswith('args:')) + '\n')
-                self.assertEqual(shlex.split(self.cw('start', p, '--print').stdout.splitlines()[0])[-2:], ['--label', 'seat'])
+                self.assertEqual(test_cw.first_command(self.cw('start', p, '--print').stdout)[-2:], ['--label', 'seat'])
         self.cw('new', 'invalid', '--kind', 'step', '--seat', 'advisor', '--args="bad', code=1)
         self.assertFalse((self.root / f'cowork/{test_cw.DAY}/invalid.md').exists())
         module = self.module()

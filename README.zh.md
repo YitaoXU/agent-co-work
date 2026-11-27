@@ -58,7 +58,7 @@ cowork/cw lint 核对 SHA。使用以下描述准备项目的 Direction 和 Plan
 - **确认席位与安装计划（新项目）：** 审阅协调员根据已安装 CLI 给出的推荐席位（包含 `discussion`）。选择**保留全部默认值**或**调整席位**（每个待调整席位选择默认配置，或根据列出的合法值填写 `agent model effort [life]`）。然后确认完整席位表、文件计划和 kit SHA，待协调员应用后再对照计划核对安装 SHA。
 - **升级已有项目：** 告诉现有项目的协调员**升级（upgrade）**，审阅它展示的升级计划与 kit SHA，确认后再应用，并核对安装后的 SHA 与已确认计划一致。
 - **请求讨论席位：** 请协调员打开一个讨论席位（可指定希望使用的 agent），切换到它告知的 Herdr 标签页直接讨论。需要它编辑项目文件时明确提出；结束讨论时告知它，由它向协调员汇报结论和未决问题。
-- **批准 Brief 与决策：** 向协调员提供项目描述，讨论 Direction 和 Plan，在每个任务启动前批准 Brief，裁决上报的重大问题，并审阅协调员简短的结论优先 Wrap-up 摘要以确定下一步。
+- **批准 Brief 与决策：** 向协调员提供项目描述，讨论 Direction 和 Plan，在每个任务启动前批准 Brief，裁决上报的重大问题，并审阅协调员简短的结论优先 Wrap-up 摘要以确定下一步。需要你决定的内容统一放在消息末尾加粗的 **▶ 需要你决定** 块中；已完成且无待你决定事项的任务会自动关闭，并告知你已关闭。
 - **离开期间继续工作：** 告诉协调员你大约会离开多久，回答它的问题，然后说 **go** 批准[离开计划](skills/cowork-away/SKILL.md)；回来后阅读摘要。
 
 ## 席位配置
@@ -118,15 +118,15 @@ flowchart TD
 
 ### 默认项目布局
 
-项目可在 `AGENTS.md` 中声明文件存放覆盖规则，安装不会搬动现有文件。忽略的证据是本地文件，备份由项目负责。
+项目可在 `AGENTS.md` 中声明存放规则。Brief 明确指定的输出路径始终优先。新输出的 `<project>` 依次取任务、父任务的 project，否则为 `_misc`；项目名不含 `_`。可在标记区块外写一行 `cowork-outputs: <template>`，用 `{project}`、`{yyyymmdd}`、`{task}` 覆盖默认布局（例如 `output/{yyyymmdd}/{task}/`）；只有布局没有另行指定无项目任务的目录时才使用 `_misc`。启动提示通过 `COWORK_ROOT` 显示主 checkout 中的默认路径。已有输出和计划从不搬动，旧引用继续有效。忽略的证据留在本地，需要项目自己的备份策略。
 
 | 路径 | 内容 | 首次安装时 Git 跟踪 | 持久证据 |
 |---|---|---|---|
 | `docs/` | 日常指南、设计、已接受结论 | 跟踪 | 是 |
-| `docs/plans/` | 编号计划、长 Brief、README 索引和 Brief 模板 | 跟踪 | 是 |
+| `docs/plans/<project>/` | 编号计划、长 Brief；每个项目或工作线目录各有 README 索引 | 跟踪 | 是 |
 | `docs/archive/` | 过时文字稿的带日期汇编 | 跟踪 | 是 |
 | `cowork/` | 每日记录、项目、席位、锁、教训 | 忽略 | 是，本地记录 |
-| `output/<yyyymmdd>/<task>/` | 结果、审计发现、日志、汇总的 `log.md` | 忽略 | 是，保护引用路径 |
+| `output/<project>/<yyyymmdd>/<task>/` | 结果、审计发现、日志、汇总的 `log.md` | 忽略 | 是，保护引用路径 |
 | `.scratch/` | 主机本地操作回执、调度文件 | 忽略 | 仅操作回执 |
 | `.tmp/` | 可丢弃的克隆、沙箱、探测 | 忽略 | 否，先导出必要证据 |
 | `.worktrees/` | 可选的隔离检出 | 忽略 | 否，在合并步骤内移除，早于结项 |
@@ -177,7 +177,7 @@ cowork/cw lint
 
 **`init` 会触及的内容**：创建 `cowork/cw`、`cowork/kit-version`（仅首次安装）、`cowork/seats.tsv`、`cowork/coordinator.addr`、`cowork/<today>/coordinator.md`、`cowork/README.md` 和 `cowork/lessons/README.md`；将五个技能（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）复制到 `.claude/skills/` 和 `.agents/skills/`；首次安装时向 `.gitignore` 追加缺失的 `/cowork/`、`/output/`、`/.scratch/`、`/.tmp/`、`/.worktrees/`（计划中列出；去除行尾空白后，带或不带根目录锚点的已有行均算存在），向 `AGENTS.md` 追加带标记区块，并向 `CLAUDE.md` 添加 `@AGENTS.md`。已有安装的普通 init 和 `--upgrade` 逐字节保留 `.gitignore`，缺少默认项时提示。在改用锚点默认项之前安装的项目可能写的是不带锚点的 `cowork/`，它也会忽略 `.agents/skills/cowork/` 和 `.claude/skills/cowork/`；如需跟踪已安装的技能，请手动改为 `/cowork/`。普通 init 保留其他已有内容（包括标记指令块以外的已有项目文字），对已更新的安装重复运行会打印 `nothing to do`。执行 `python3 ~/.agent-co-work/bin/cw init --upgrade`（随后 `--upgrade --apply`）仅刷新 `cowork/cw`、`cowork/kit-version`、复制的技能和 `AGENTS.md` 的标记区块。
 
-首次安装还会在计划中列出并用随附模板创建 `docs/plans/README.md` 和 `docs/plans/brief-template.md`，前提是不存在 plans 目录（检查不区分大小写，包括 `Docs/plans/`）。已有 plans 目录绝不覆盖或合并。安装后的普通 init 和 `--upgrade` 不创建也不触及这两个文件；缺少 plans 目录时打印一条提示。
+首次安装还会在计划中列出并用随附模板创建项目目录索引 `docs/plans/README.md` 和 `docs/plans/brief-template.md`，前提是不存在 plans 目录（检查不区分大小写，包括 `Docs/plans/`）。已有 plans 目录绝不覆盖或合并。安装后的普通 init 和 `--upgrade` 不创建也不触及这两个文件；缺少 plans 目录时打印一条提示。`cw project new <name>` 仅在实际大小写完全匹配的 `docs/plans/` 已存在、项目子目录不存在、且未声明 `cowork-outputs:` 布局时，从目录模板创建 `docs/plans/<name>/README.md`；否则不改 plans，只打印一条提示。
 
 **使用服务器的项目**：如果项目在服务器上运行作业，`cowork-init` 的可选步骤会询问 [templates/server.md](templates/server.md) 中的每个占位符，填好规则供用户确认后，保存到 `docs/server.md`（或项目声明的文档路径）。已有服务器指南绝不覆盖，并在 `AGENTS.md` 的标记区块之外添加指针。硬件信息在沙箱外探测前保持未验证状态。
 
@@ -232,7 +232,7 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 
 [记录规则](skills/cowork/SKILL.md#records-and-messages) 定义写入归属与不可变证据；[cowork-consolidate](skills/cowork-consolidate/SKILL.md) 覆盖 State、Decisions/Plan、教训、概览/交接、归档、输出/临时文件和记忆。
 
-短 Brief 留在任务记录中。超过约 20 行、跨多个任务或需要作为项目文档保留的 Brief 放在 `docs/plans/`，任务记录引用它。计划使用 `NNN-<slug>.md`，Brief 使用 `NNN-<slug>-brief.md`，三位编号永不复用。可按工作线设子目录，各自维护 README 索引和编号，除非父索引声明共用编号。协调员在命名阶段转换和 Wrap-up/结项时更新计划 README 的 State 单元格，每格只写一句简短状态；执行细节保留在任务 State 和 `output/<yyyymmdd>/<task>/log.md`。
+短 Brief 留在任务记录中。超过约 20 行、跨多个任务或需要作为项目文档保留的 Brief 放在 `docs/plans/<project>/`（无项目时为 `_misc`），任务记录引用它；根 README 索引这些目录，Brief 模板保留在根目录。计划使用 `NNN-<slug>.md`，Brief 使用 `NNN-<slug>-brief.md`，三位编号永不复用。每个项目或工作线目录各有 README，也可设下级子目录；编号按目录独立，除非父 README 声明共用编号。协调员在命名阶段转换和 Wrap-up/结项时更新计划 README 的 State 单元格，每格只写一句简短状态；执行细节保留在任务 State 和 `output/<project>/<yyyymmdd>/<task>/log.md`。
 
 - `cw report "<conclusion>; <path>"` 向协调员发送带任务前缀的消息。`--to <task>` 优先解析发送方同日记录，否则使用最新同名记录，发送给活跃目标并抄送协调员；目标缺失则只通知协调员。每个直接收件方都有送达回执。
 - 报告发送最多尝试三次，每次约 180 秒，整条命令共用 10 分钟预算（含 `--to` 的两个收件方）。每次重试前读取目标屏幕；正文已显示则视为送达，不再重发。进度写入 stderr，仅最终结果产生回执。任务投递、按键、启动及其他通知保持原有行为。
@@ -311,7 +311,7 @@ Claude 的 effort 为 `low`、`medium`、`high`、`xhigh`、`max`；agy 列出�
 
 ### 开发说明
 
-- **目录结构**：`bin/cw`（单个纯标准库 Python 3 脚本）、`skills/`（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）、`templates/`（包含用于目标项目 `docs/plans/` 的 `plans-readme.md` 和 `brief-template.md`）、`tests/`、`index.html`（公开概览页）与 `.nojekyll`（GitHub Pages 原样提供文件）。
+- **目录结构**：`bin/cw`（单个纯标准库 Python 3 脚本）、`skills/`（`cowork`、`cowork-init`、`cowork-seat`、`cowork-consolidate`、`cowork-away`）、`templates/`（包含用于目标项目 `docs/plans/` 的 `plans-index.md`、`plans-readme.md` 和 `brief-template.md`）、`tests/`、`index.html`（公开概览页）与 `.nojekyll`（GitHub Pages 原样提供文件）。
 - **单一规则来源**：协作规则只维护在 [skills/cowork/SKILL.md](skills/cowork/SKILL.md)（建议不超过 150 行）；其余四个技能仅链接至此，不重复陈述规则。
 - **日常校验**：在 kit 仓库中运行 `python3 -m unittest discover tests`；在已初始化的项目中运行 `cowork/cw lint`，校验该项目的协作记录。
 

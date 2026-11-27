@@ -20,8 +20,8 @@ Limits: <tokens, GPU, time, cost>
 
 3. **Approve once.** Show the formatted task list and full plan. The user's single "go" approves the plan and every listed Brief, including optional extras; use `cw set` to record `approved: user, <date> (away plan)` and `status: approved` on the away record and queued tasks. Begin only after that approval; start nothing outside the approved queue.
 4. **During.** Ask no questions and request no approvals from the user. Apply a pre-answer and log `decided`. An unforeseen hard question (science, scope, budget, risk, a failed gate), or any deletion, data move, destructive Git, push, or external write not pre-authorized by name, parks the affected task: use `cw set` for `status: blocked`, write `BLOCKED:` in its State, and log `parked`. Continue independent queued tasks. For other unforeseen questions, take the reversible conservative choice and log `decided`.
-   Keep State current. Scheduled checks and audit tiers apply unchanged; the coordinator accepts steps and drafts Wrap-ups. Tasks stop at `wrap-up`, never `closed`; Takeaways wait for the user.
-   Append every decision, parked task, issue, completion, and check to `output/<date>/away/log.md`, one event per line:
+   Keep State current. Scheduled checks and audit tiers apply unchanged; the coordinator accepts steps and drafts Wrap-ups. Accepted tasks without a pending user decision close as in skill cowork; the rest stop at `wrap-up`. Takeaways wait for the user.
+   Append every decision, parked task, issue, completion, and check to `output/<project>/<yyyymmdd>/away/log.md`, one event per line:
 
 ```text
 - <time> [decided|parked|issue|done|check] <task>: <what>; <evidence>
@@ -33,14 +33,15 @@ Limits: <tokens, GPU, time, cost>
 Window: <start to return>; Queue progress: <n/m completed>
 1. Done
    <each task: result; evidence path>
-2. Needs your decision
-   1. <question; context; options; recommendation>
-3. Decided for you
+2. Decided for you
    <each pre-answer or default applied, for review>
-4. Current phase
+3. Current phase
    <each running task: phase; next step; ETA>
-5. Still pending
+4. Still pending
    <unstarted tasks; parked tasks with reasons>
+
+**▶ Decision needed** (only when decisions remain; skill cowork Escalation)
+1. **<self-contained question with context>** Options, recommended first.
 ```
 
 6. **Handover continuity.** The away record is recovery context: preserve its approved plan, queue progress, pre-answers, named authorizations, limits, log path, and active checks in State/Handover. A successor reads that record and log and continues the same window and queue under [cowork's handover rules](../cowork/SKILL.md#size-limits-consolidation-and-handover).
